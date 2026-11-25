@@ -184,61 +184,7 @@ export function Hero3DStage({
           </div>
         </motion.div>
 
-        {/* Top Legend Bar with color dots and click-to-focus name selection */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-          aria-label="Milieu-Legende & Direktwahl"
-          className="mt-4 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2.5 rounded-2xl border border-white/[0.09] bg-[#111214]/90 px-3.5 py-2.5 backdrop-blur-md shadow-lg"
-        >
-          <span className="text-[11px] font-medium text-[#8a8f98] mr-1">
-            {mode === '2035' ? 'Legende 2035 (Klick zum Fokus):' : 'Legende 2026:'}
-          </span>
-          {mode === '2035'
-            ? MILIEUS.map((m) => {
-                const isSelected = selection?.kind === '2035' && selection.id === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => onSelectMilieu({ kind: '2035', id: m.id })}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-white text-[#08090a] font-semibold shadow-sm'
-                        : 'bg-white/[0.04] text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white'
-                    }`}
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: m.colorHex }}
-                    />
-                    <span>{m.shortName}</span>
-                  </button>
-                );
-              })
-            : CLASSIC_MILIEUS_2026.map((c) => {
-                const isSelected = selection?.kind === '2026' && selection.id === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => onSelectMilieu({ kind: '2026', id: c.id })}
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-white text-[#08090a] font-semibold shadow-sm'
-                        : 'bg-white/[0.04] text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white'
-                    }`}
-                  >
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: c.colorHex }}
-                    />
-                    <span>{c.shortName}</span>
-                  </button>
-                );
-              })}
-        </motion.div>
+
 
         {/* 3D Interactive Stage (on-bubble surface labels + seamless mobile/desktop sizing) */}
         <motion.div
@@ -389,6 +335,59 @@ export function Hero3DStage({
                 Steckbrief
               </span>
             </div>
+
+          {/* Legend bar floating inside the 3D stage */}
+          <div
+            aria-label="Milieu-Legende & Direktwahl"
+            className="pointer-events-auto absolute top-14 left-3 right-3 sm:top-14 sm:left-4 sm:right-4 z-20 flex flex-wrap items-center justify-center gap-1 sm:gap-2 rounded-xl border border-white/[0.09] bg-[#111214]/90 px-3 py-1.5 backdrop-blur-md shadow-lg"
+          >
+            <span className="text-[10.5px] sm:text-[11px] font-medium text-[#8a8f98] mr-1">
+              {mode === '2035' ? 'Legende (Klick zum Fokus):' : 'Legende 2026:'}
+            </span>
+            {mode === '2035'
+              ? MILIEUS.map((m) => {
+                  const isSelected = selection?.kind === '2035' && selection.id === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => onSelectMilieu({ kind: '2035', id: m.id })}
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-white text-[#08090a] font-semibold shadow-sm'
+                          : 'bg-white/[0.04] text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: m.colorHex }}
+                      />
+                      <span>{m.shortName}</span>
+                    </button>
+                  );
+                })
+              : CLASSIC_MILIEUS_2026.map((c) => {
+                  const isSelected = selection?.kind === '2026' && selection.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => onSelectMilieu({ kind: '2026', id: c.id })}
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10.5px] font-medium transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-white text-[#08090a] font-semibold shadow-sm'
+                          : 'bg-white/[0.04] text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className="h-2 w-2 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: c.colorHex }}
+                      />
+                      <span>{c.shortName}</span>
+                    </button>
+                  );
+                })}
+          </div>
 
             {/* Inside Fullscreen, keep mode switcher reachable directly in top-right */}
             {isFullscreen && !selected2035 && !selected2026 && (
