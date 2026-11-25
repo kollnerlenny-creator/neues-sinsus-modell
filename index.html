@@ -1,20 +1,58 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" class="dark scroll-smooth">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sozialstruktur Deutschland 2035 – 3D-SINUS-Transformationsmodell</title>
+    <title>SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell</title>
     <meta
       name="description"
-      content="Interaktives 3D-SINUS-Transformationsmodell zur Visualisierung der Sozialstruktur Deutschlands 2035 im Vergleich zum klassischen Modell 2020."
+      content="Interaktives 3D-Sozialstrukturmodell auf Basis der SINUS-Milieus (2026 vs. 2035) mit schwebenden 3D-Inseln, Verteilungsanalyse und Milieu-Selbsttest."
     />
-    <meta property="og:title" content="Sozialstruktur Deutschland 2035 – 3D-SINUS-Transformationsmodell" />
+    <meta name="theme-color" content="#08090a" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SINUS 2035" />
+    <meta property="og:locale" content="de_DE" />
+    <meta
+      property="og:title"
+      content="SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell"
+    />
     <meta
       property="og:description"
-      content="Interaktives 3D-SINUS-Transformationsmodell zur Visualisierung der Sozialstruktur Deutschlands 2035 im Vergleich zum klassischen Modell 2020."
+      content="Entdecke die 6 Zukunfts-Milieus 2035 im interaktiven 3D-Raummodell, vergleiche 2026 vs. 2035 und bestimme deinen eigenen Standort im Selbsttest."
     />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/og-preview.jpg" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta
+      property="og:image:alt"
+      content="Interaktives 3D-SINUS-Transformationsmodell Deutschland 2035 mit sechs schwebenden Glas-Inseln"
+    />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell"
+    />
+    <meta
+      name="twitter:description"
+      content="Entdecke die 6 Zukunfts-Milieus 2035 im interaktiven 3D-Raummodell, vergleiche 2026 vs. 2035 und bestimme deinen eigenen Standort im Selbsttest."
+    />
+    <meta name="twitter:image" content="/og-preview.jpg" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell",
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "All",
+        "inLanguage": "de",
+        "description": "Interaktives 3D-Sozialstrukturmodell auf Basis der SINUS-Milieus (2026 vs. 2035) mit schwebenden 3D-Inseln, Verteilungsanalyse und Milieu-Selbsttest.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR"
+        }
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -22,7 +60,7 @@
       rel="stylesheet"
     />
   </head>
-  <body class="bg-[#0b0f19] text-slate-100 antialiased overflow-hidden select-none">
+  <body class="bg-[#08090a] text-[#f7f8f8] antialiased selection:bg-white/20 selection:text-white">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

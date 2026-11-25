@@ -1,66 +1,49 @@
-import { ArrowLeft } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AXIS_LABELS, MILIEUS, type MilieuId, type SimulationYear } from './data/milieus';
+import { MotionConfig } from 'motion/react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { DistributionSection } from './components/DistributionSection';
+import { Hero3DStage } from './components/Hero3DStage';
+import { MilieusGridSection } from './components/MilieusGridSection';
+import { Navbar } from './components/Navbar';
+import { SelfTestSection } from './components/SelfTestSection';
+import { SharePreviewModal } from './components/SharePreviewModal';
+import { TransformationSection } from './components/TransformationSection';
+import {
+  CLASSIC_MILIEUS_2026,
+  MILIEUS,
+  type MilieuId,
+  type ModelMode,
+} from './data/milieus';
 import {
   SinusSceneManager,
   type ProjectedLabelPosition,
+  type SelectionPayload,
 } from './three/SinusSceneManager';
-import { AxisLegend } from './components/AxisLegend';
-import { ControlDock } from './components/ControlDock';
-import { MilieuSidebar } from './components/MilieuSidebar';
-import { SelfTestModal } from './components/SelfTestModal';
-import { downloadStandaloneHtml } from './utils/exportHtml';
-import { getDisplayYear, interpolateMilieuFrame } from './utils/projection';
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SinusSceneManager | null>(null);
 
-  const milieuLabelRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const axisLabelRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const userMarkerLabelRef = useRef<HTMLDivElement | null>(null);
 
-  // Continuous morph progress: 0.0 = 2020 (2D), 1.0 = 2035 (3D)
-  const [transformProgress, setTransformProgress] = useState<number>(1.0);
-  const [isScrubbing, setIsScrubbing] = useState<boolean>(false);
-  const [showRiftsAndArrows, setShowRiftsAndArrows] = useState(true);
-  const [autoRotate, setAutoRotate] = useState(false);
-  const [selectedId, setSelectedId] = useState<MilieuId | null>(null);
-  const [hoveredId, setHoveredId] = useState<MilieuId | null>(null);
-  const [dockCollapsed, setDockCollapsed] = useState(false);
-  const [legendOpen, setLegendOpen] = useState(() =>
-    typeof window !== 'undefined' ? window.innerWidth >= 768 : true,
-  );
-  const [selfTestOpen, setSelfTestOpen] = useState(false);
+  const [mode, setMode] = useState<ModelMode>('2035');
+  const [selection, setSelection] = useState<SelectionPayload | null>(null);
   const [contextLost, setContextLost] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [userResultCoords, setUserResultCoords] = useState<{
+    uX: number;
+    uY: number;
+    uZ: number;
+  } | null>(null);
 
-  const displayYear = getDisplayYear(transformProgress);
-  const sidebarYear: SimulationYear = transformProgress < 0.5 ? '2020' : '2035';
+  const smoothedAxisRef = useRef<Record<string, { x: number; y: number }>>({});
+  const smoothedUserRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  const selectedMilieu = useMemo(
-    () => MILIEUS.find((m) => m.id === selectedId) ?? null,
-    [selectedId],
-  );
-
-  // Update floating HTML label positions imperatively without React re-renders
   const handleLabelsFrame = useCallback(
     (
-      milieuPositions: Record<string, ProjectedLabelPosition>,
       axisPositions: Record<string, ProjectedLabelPosition>,
+      userMarkerPosition: ProjectedLabelPosition,
     ) => {
-      for (const id of Object.keys(milieuPositions)) {
-        const pos = milieuPositions[id];
-        const el = milieuLabelRefs.current[id];
-        if (!el) continue;
-        if (!pos.visible) {
-          el.style.opacity = '0';
-          el.style.pointerEvents = 'none';
-        } else {
-          el.style.opacity = '1';
-          el.style.pointerEvents = 'auto';
-          el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`;
-        }
-      }
-
       for (const id of Object.keys(axisPositions)) {
         const pos = axisPositions[id];
         const el = axisLabelRefs.current[id];
@@ -69,12 +52,58 @@ export default function App() {
           el.style.opacity = '0';
         } else {
           el.style.opacity = '1';
-          el.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`;
+          const prev = smoothedAxisRef.current[id] || { x: pos.x, y: pos.y };
+          const sx = prev.x + (pos.x - prev.x) * 0.32;
+          const sy = prev.y + (pos.y - prev.y) * 0.32;
+          smoothedAxisRef.current[id] = { x: sx, y: sy };
+          el.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
+        }
+      }
+
+      const uEl = userMarkerLabelRef.current;
+      if (uEl) {
+        if (!userMarkerPosition.visible) {
+          uEl.style.opacity = '0';
+        } else {
+          uEl.style.opacity = '1';
+          const prevU = smoothedUserRef.current;
+          const sx = prevU.x + (userMarkerPosition.x - prevU.x) * 0.35;
+          const sy = prevU.y + (userMarkerPosition.y - prevU.y) * 0.35;
+          smoothedUserRef.current = { x: sx, y: sy };
+          uEl.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
         }
       }
     },
     [],
   );
+
+  // Sync dynamic canonical & OpenGraph URL tags + parse deep-link query params
+  useEffect(() => {
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const absoluteImg = `${window.location.origin}/og-preview.jpg`;
+
+    const upsertMeta = (attr: 'property' | 'name', key: string, content: string) => {
+      let el = document.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
+    };
+
+    upsertMeta('property', 'og:url', window.location.href);
+    upsertMeta('property', 'og:image', absoluteImg);
+    upsertMeta('name', 'twitter:image', absoluteImg);
+
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement('link');
+      canonical.setAttribute('rel', 'canonical');
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute('href', baseUrl);
+  }, []);
 
   // Mount Three.js scene once
   useEffect(() => {
@@ -82,12 +111,45 @@ export default function App() {
     if (!mountEl) return;
 
     const manager = new SinusSceneManager(mountEl, {
-      onSelectMilieu: (id) => setSelectedId(id),
-      onHoverMilieu: (id) => setHoveredId(id),
+      onSelect: (sel) => setSelection(sel),
+      onHover: () => {},
       onLabelsFrame: handleLabelsFrame,
       onContextLost: (lost) => setContextLost(lost),
     });
     sceneRef.current = manager;
+
+    // Support shared deep-link query parameters (?mode=2026&kind=2035&milieu=avantgarde)
+    const params = new URLSearchParams(window.location.search);
+    const paramMode = params.get('mode');
+    const paramKind = params.get('kind');
+    const paramMilieu = params.get('milieu');
+
+    if (paramMode === '2026') {
+      setMode('2026');
+      manager.setMode('2026');
+    }
+
+    if (paramMilieu) {
+      if (
+        (paramKind === '2026' || paramMode === '2026') &&
+        CLASSIC_MILIEUS_2026.some((c) => c.id === paramMilieu)
+      ) {
+        const sel: SelectionPayload = { kind: '2026', id: paramMilieu };
+        setMode('2026');
+        manager.setMode('2026');
+        setSelection(sel);
+        manager.applySelection(sel, true);
+      } else if (MILIEUS.some((m) => m.id === paramMilieu)) {
+        const sel: SelectionPayload = {
+          kind: '2035',
+          id: paramMilieu as MilieuId,
+        };
+        setMode('2035');
+        manager.setMode('2035');
+        setSelection(sel);
+        manager.applySelection(sel, true);
+      }
+    }
 
     return () => {
       manager.dispose();
@@ -95,279 +157,131 @@ export default function App() {
     };
   }, [handleLabelsFrame]);
 
-  // Sync React controls to Three.js scene
-  useEffect(() => {
-    sceneRef.current?.setTransformProgress(transformProgress, isScrubbing);
-  }, [transformProgress, isScrubbing]);
-
-  useEffect(() => {
-    sceneRef.current?.setShowRiftsAndArrows(showRiftsAndArrows);
-  }, [showRiftsAndArrows]);
-
-  useEffect(() => {
-    sceneRef.current?.setAutoRotate(autoRotate);
-  }, [autoRotate]);
-
-  const handleScrubProgress = useCallback((value: number) => {
-    setIsScrubbing(true);
-    setTransformProgress(value);
-  }, []);
-
-  const handleAnimateToProgress = useCallback((value: number) => {
-    setIsScrubbing(false);
-    setTransformProgress(value);
-  }, []);
-
-  const handleSelectMilieu = useCallback((id: MilieuId | null) => {
-    setSelectedId(id);
-    sceneRef.current?.selectMilieu(id, id !== null);
-    if (id === null) {
-      sceneRef.current?.resetCamera();
-    }
+  const handleChangeMode = useCallback((nextMode: ModelMode) => {
+    setMode(nextMode);
+    setSelection(null);
+    sceneRef.current?.setMode(nextMode);
   }, []);
 
   const handleResetOverview = useCallback(() => {
-    setSelectedId(null);
-    sceneRef.current?.selectMilieu(null, false);
-    sceneRef.current?.resetCamera();
+    setSelection(null);
+    sceneRef.current?.applySelection(null, false);
+    if (mode === '2026') {
+      sceneRef.current?.setMode('2026');
+    } else {
+      sceneRef.current?.resetCamera();
+    }
+  }, [mode]);
+
+  const handleStageResize = useCallback(() => {
+    sceneRef.current?.handleResize();
   }, []);
 
-  const handleLegendHover = useCallback((id: MilieuId | null) => {
-    setHoveredId(id);
-    sceneRef.current?.setHoveredMilieu(id);
-  }, []);
-
-  const handleViewSelfTestResultIn3D = useCallback((milieuId: MilieuId) => {
-    setSelfTestOpen(false);
-    setIsScrubbing(false);
-    setTransformProgress(1.0);
-    setSelectedId(milieuId);
-    sceneRef.current?.setTransformProgress(1.0, false);
-    sceneRef.current?.selectMilieu(milieuId, true);
-  }, []);
-
-  const handleToggleRifts = useCallback(() => {
-    setShowRiftsAndArrows((prev) => !prev);
-  }, []);
-
-  const handleToggleAutoRotate = useCallback(() => {
-    setAutoRotate((prev) => !prev);
-  }, []);
-
-  const handleStepMilieu = useCallback(
-    (direction: -1 | 1) => {
-      const idx = selectedId ? MILIEUS.findIndex((m) => m.id === selectedId) : -1;
+  const handleStep2035 = useCallback(
+    (dir: -1 | 1) => {
+      const idx =
+        selection?.kind === '2035'
+          ? MILIEUS.findIndex((m) => m.id === selection.id)
+          : -1;
       const nextIdx =
-        idx === -1
-          ? 0
-          : (idx + direction + MILIEUS.length) % MILIEUS.length;
-      handleSelectMilieu(MILIEUS[nextIdx].id);
+        idx === -1 ? 0 : (idx + dir + MILIEUS.length) % MILIEUS.length;
+      const nextSel: SelectionPayload = {
+        kind: '2035',
+        id: MILIEUS[nextIdx].id,
+      };
+      setSelection(nextSel);
+      sceneRef.current?.applySelection(nextSel, true);
     },
-    [selectedId, handleSelectMilieu],
+    [selection],
   );
 
-  // Keyboard shortcuts for classroom presentation (1-6, Escape, R)
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (e.key === 'Escape' || e.key === 'r' || e.key === 'R') {
-        handleResetOverview();
-      } else if (e.key >= '1' && e.key <= '6') {
-        const idx = Number(e.key) - 1;
-        if (MILIEUS[idx]) {
-          handleSelectMilieu(MILIEUS[idx].id);
-        }
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [handleSelectMilieu, handleResetOverview]);
+  const handleFocusMilieuFromGrid = useCallback((id: MilieuId) => {
+    setMode('2035');
+    sceneRef.current?.setMode('2035');
+    const nextSel: SelectionPayload = { kind: '2035', id };
+    setSelection(nextSel);
+    sceneRef.current?.applySelection(nextSel, true);
+    document.getElementById('modell-3d')?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const handleViewSelfTestResultIn3D = useCallback(
+    (milieuId: MilieuId, coords: { uX: number; uY: number; uZ: number }) => {
+      setUserResultCoords(coords);
+      setMode('2035');
+      sceneRef.current?.setMode('2035');
+      sceneRef.current?.setUserSelfTestMarker(coords);
+      const nextSel: SelectionPayload = { kind: '2035', id: milieuId };
+      setSelection(nextSel);
+      sceneRef.current?.applySelection(nextSel, true);
+      document.getElementById('modell-3d')?.scrollIntoView({ behavior: 'smooth' });
+    },
+    [],
+  );
 
   return (
-    <main
-      className="relative w-screen h-screen overflow-hidden bg-[#0b0f19]"
-      data-year={displayYear}
-      data-progress={transformProgress.toFixed(2)}
-      data-rifts={showRiftsAndArrows ? 'visible' : 'hidden'}
-      data-selected={selectedId ?? 'none'}
-    >
-      {/* Isolated WebGL Canvas Container */}
-      <div
-        ref={canvasMountRef}
-        data-testid="three-canvas-host"
-        className="absolute inset-0 w-full h-full z-0"
-      />
+    <MotionConfig reducedMotion="user">
+      <div className="relative min-h-screen bg-[#08090a] text-[#f7f8f8]">
+        {/* Subtle Linear-style white ambient light points in the background */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-0"
+          style={{
+            backgroundImage: [
+              'radial-gradient(760px circle at 50% 4%, rgba(255, 255, 255, 0.075), transparent 70%)',
+              'radial-gradient(620px circle at 50% 56%, rgba(255, 255, 255, 0.028), transparent 74%)',
+            ].join(', '),
+          }}
+        />
 
-      {/* WebGL Context Lost Fallback */}
-      {contextLost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b0f19]/95 p-6 text-center">
-          <div className="glass-panel max-w-md rounded-2xl p-6">
-            <h2 className="font-display text-lg font-semibold text-slate-100">
-              3D-Grafikkontext unterbrochen
-            </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Die WebGL-Darstellung wird automatisch wiederhergestellt oder kann über einen Seiten-Reload neu gestartet werden.
-            </p>
-          </div>
-        </div>
-      )}
+        <div className="relative z-10">
+          <Navbar onOpenShare={() => setShareOpen(true)} />
 
-      {/* Projected 3D Axis & Milieu Labels Layer */}
-      <div
-        aria-hidden={false}
-        className="pointer-events-none fixed inset-0 z-10 overflow-hidden"
-      >
-        {/* Clean typographic axis labels (automatically hidden when a milieu is focused) */}
-        {AXIS_LABELS.map((ax) => (
-          <div
-            key={ax.id}
-            ref={(el) => {
-              axisLabelRefs.current[ax.id] = el;
-            }}
-            data-testid={`axis-label-${ax.id}`}
-            style={{ opacity: 0 }}
-            className="absolute top-0 left-0 px-2 py-0.5 rounded bg-[#0b0f19]/65 text-center transition-opacity duration-200"
-          >
-            <div
-              className="text-[11px] font-semibold tracking-wide whitespace-nowrap"
-              style={{ color: ax.accentColor }}
-            >
-              {ax.text}
+          <main>
+            <Hero3DStage
+              mode={mode}
+              onChangeMode={handleChangeMode}
+              canvasMountRef={canvasMountRef}
+              axisLabelRefs={axisLabelRefs}
+              userMarkerLabelRef={userMarkerLabelRef}
+              selection={selection}
+              onStep2035={handleStep2035}
+              onResetOverview={handleResetOverview}
+              onStageResize={handleStageResize}
+              onOpenShare={() => setShareOpen(true)}
+              contextLost={contextLost}
+              userResultCoords={userResultCoords}
+              onSelectMilieu={(sel) => {
+                setSelection(sel);
+                sceneRef.current?.applySelection(sel, true);
+              }}
+            />
+
+            <MilieusGridSection onFocusIn3D={handleFocusMilieuFromGrid} />
+
+            <TransformationSection />
+
+            <DistributionSection />
+
+            <SelfTestSection onViewResultIn3D={handleViewSelfTestResultIn3D} />
+          </main>
+
+          <footer className="border-t border-white/[0.06] py-8">
+            <div className="mx-auto flex max-w-[1280px] flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 text-xs text-[#62666d] text-center sm:text-left">
+              <span>
+                SOZIALSTRUKTUR DEUTSCHLAND 2035 · Das schwebende 3D-SINUS-Modell
+              </span>
+              <span>Gemeinschaftskunde / GRW · Klasse 12</span>
             </div>
-            {ax.subtext && (
-              <div className="text-[10px] text-slate-400/90 whitespace-nowrap">
-                {ax.subtext}
-              </div>
-            )}
-          </div>
-        ))}
-
-        {/* Interactive Milieu Labels (unfocused labels fade away on focus) */}
-        {MILIEUS.map((m) => {
-          const frame = interpolateMilieuFrame(m, transformProgress);
-          const isSelected = selectedId === m.id;
-          const isHovered = hoveredId === m.id;
-
-          return (
-            <button
-              key={m.id}
-              type="button"
-              ref={(el) => {
-                milieuLabelRefs.current[m.id] = el;
-              }}
-              onClick={() => handleSelectMilieu(m.id)}
-              aria-label={`${m.name}, Anteil ${frame.share} Prozent, Details öffnen`}
-              data-testid={`milieu-label-${m.id}`}
-              style={{
-                opacity: 0,
-                borderColor: isSelected
-                  ? m.colorHex
-                  : isHovered
-                    ? 'rgba(248, 250, 252, 0.55)'
-                    : 'rgba(148, 163, 184, 0.24)',
-              }}
-              className="pointer-events-auto absolute top-0 left-0 glass-label rounded-xl px-2.5 py-1.5 text-left cursor-pointer transition-all duration-150 focus-visible:outline-2 focus-visible:outline-sky-400"
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="inline-block w-2 h-2 rounded-xs shrink-0"
-                  style={{ backgroundColor: m.colorHex }}
-                  aria-hidden="true"
-                />
-                <span className="text-[11.5px] font-semibold text-slate-100 whitespace-nowrap">
-                  {m.shortName}
-                </span>
-              </div>
-              <div className="mt-0.5 flex items-center gap-1.5 pl-3.5 text-[10.5px] font-mono-tabular text-slate-300 whitespace-nowrap">
-                <span>{frame.share} %</span>
-                <span className="text-slate-500" aria-hidden="true">·</span>
-                <span className="text-slate-400">
-                  {transformProgress < 0.2
-                    ? '2020 (2D)'
-                    : transformProgress > 0.85
-                      ? `Resilienz ${m.resilienceScore}`
-                      : `Jahr ${displayYear}`}
-                </span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Top-Left Presentation Header + Focus Return Action */}
-      <header className="pointer-events-none fixed top-4 left-4 z-20 flex flex-col items-start gap-2 max-w-[min(460px,calc(100vw-2rem))]">
-        <div className="glass-panel rounded-2xl px-4 py-3">
-          <h1 className="font-display text-base sm:text-lg font-bold tracking-wide text-slate-50 text-balance">
-            SOZIALSTRUKTUR DEUTSCHLAND 2035
-          </h1>
-          <p className="mt-0.5 text-xs text-slate-400">
-            3D-SINUS-Transformationsmodell (GK GRW 12) ·{' '}
-            <span className="font-mono-tabular text-slate-300">
-              {transformProgress < 0.15
-                ? 'Referenz 2020 (2D)'
-                : transformProgress > 0.85
-                  ? 'Prognose 2035 (3D)'
-                  : `Transformation ${displayYear}`}
-            </span>
-          </p>
+          </footer>
         </div>
 
-        {selectedMilieu && (
-          <button
-            type="button"
-            onClick={handleResetOverview}
-            data-testid="back-to-overview-btn"
-            className="pointer-events-auto inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl glass-panel text-xs font-medium text-slate-200 hover:text-white hover:border-slate-500/50 transition-colors whitespace-nowrap focus-visible:outline-2 focus-visible:outline-sky-400"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
-            <span>Zurück zur Übersicht</span>
-          </button>
-        )}
-      </header>
-
-      {/* Bottom-Left Legend: Milieus + Axes + Arrows & Connections */}
-      <AxisLegend
-        hidden={selectedId !== null}
-        isOpen={legendOpen}
-        onToggleOpen={() => setLegendOpen((prev) => !prev)}
-        progress={transformProgress}
-        hoveredId={hoveredId}
-        onSelectMilieu={handleSelectMilieu}
-        onHoverMilieu={handleLegendHover}
-      />
-
-      {/* Right Glassmorphism Detail Sidebar */}
-      <MilieuSidebar
-        milieu={selectedMilieu}
-        year={sidebarYear}
-        onClose={handleResetOverview}
-        onStep={handleStepMilieu}
-      />
-
-      {/* Bottom Presentation Control Dock */}
-      <ControlDock
-        progress={transformProgress}
-        onScrubProgress={handleScrubProgress}
-        onAnimateToProgress={handleAnimateToProgress}
-        showRiftsAndArrows={showRiftsAndArrows}
-        onToggleRiftsAndArrows={handleToggleRifts}
-        onResetCamera={handleResetOverview}
-        autoRotate={autoRotate}
-        onToggleAutoRotate={handleToggleAutoRotate}
-        onExportStandaloneHtml={downloadStandaloneHtml}
-        onOpenSelfTest={() => setSelfTestOpen(true)}
-        collapsed={dockCollapsed}
-        onToggleCollapsed={() => setDockCollapsed((prev) => !prev)}
-      />
-
-      {/* Interactive Milieu Self-Test 2035 Modal */}
-      <SelfTestModal
-        open={selfTestOpen}
-        onClose={() => setSelfTestOpen(false)}
-        onViewIn3D={handleViewSelfTestResultIn3D}
-      />
-    </main>
+        <SharePreviewModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          mode={mode}
+          selection={selection}
+        />
+      </div>
+    </MotionConfig>
   );
 }

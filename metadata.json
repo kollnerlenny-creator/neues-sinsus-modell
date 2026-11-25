@@ -1,6 +1,6 @@
 {
-  "name": "Sozialstruktur Deutschland 2035 – 3D-SINUS-Transformationsmodell",
-  "description": "Interaktives 3D-SINUS-Transformationsmodell zur Visualisierung der Sozialstruktur Deutschlands 2035 im Vergleich zu 2020 für den Gemeinschaftskunde-Unterricht (Klasse 12).",
+  "name": "SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell",
+  "description": "Interaktives 3D-Sozialstrukturmodell auf Basis der SINUS-Milieus (2026 vs. 2035) mit schwebenden 3D-Inseln, Transformationsanalyse und Milieu-Selbsttest.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

@@ -1,11 +1,19 @@
-import { MILIEUS, type MilieuSpec, type SimulationYear } from '../data/milieus';
+import {
+  CLASSIC_MILIEUS_2026,
+  MILIEUS,
+  type ClassicMilieu2026Spec,
+  type MilieuSpec,
+  type ModelMode,
+} from '../data/milieus';
 
 export interface MilieuFrameTarget {
   x: number;
   z: number;
-  height: number;
+  elevation: number;
   scale: number;
   share: number;
+  opacity2035: number;
+  opacity2026: number;
 }
 
 export interface ScreenPoint {
@@ -22,6 +30,7 @@ export interface LabelLayoutInput {
   width: number;
   height: number;
   priority: number;
+  fixed?: boolean;
 }
 
 export interface LabelLayoutOutput {
@@ -47,53 +56,72 @@ export function smootherstep(edge0: number, edge1: number, x: number): number {
 }
 
 /**
- * Choreographed interpolation between 2020 (t = 0, flat overlapping 2D)
- * and 2035 (t = 1, separated extruded 3D transformation model).
- * Phase 1 (0.0 -> 0.55): horizontal separation & footprint morphing as rifts open.
- * Phase 2 (0.22 -> 1.0): smooth vertical resilience extrusion.
+ * Choreographed interpolation between 2026 (t = 0, 10 overlapping 2D milieus on floor)
+ * and 2035 (t = 1, 6 floating 3D organic islands at exact Z resilience elevation).
+ * Phase 1 (0.0 -> 0.45): 2026 circles fade & merge into the 6 blocks on the floor.
+ * Phase 2 (0.25 -> 1.0): 6 islands float upward along Z with plumb lines extending down.
  */
 export function interpolateMilieuFrame(
   milieu: MilieuSpec,
   progress: number,
 ): MilieuFrameTarget {
   const t = clamp01(progress);
-  const spreadEase = smootherstep(0.0, 0.58, t);
-  const heightEase = smootherstep(0.2, 1.0, t);
+  const spreadEase = smootherstep(0.08, 0.68, t);
+  const liftEase = smootherstep(0.22, 1.0, t);
   const shareEase = smootherstep(0.0, 1.0, t);
+
+  const opacity2035 = smootherstep(0.18, 0.62, t);
+  const opacity2026 = 1 - smootherstep(0.08, 0.52, t);
 
   const lerp = (a: number, b: number, alpha: number) => a + (b - a) * alpha;
 
   return {
-    x: lerp(milieu.pos2020.x, milieu.pos2035.x, spreadEase),
-    z: lerp(milieu.pos2020.z, milieu.pos2035.z, spreadEase),
-    height: lerp(milieu.height2020, milieu.height2035, heightEase),
-    scale: lerp(milieu.scale2020, milieu.scale2035, spreadEase),
-    share: Math.round(lerp(milieu.share2020, milieu.share2035, shareEase)),
+    x: lerp(milieu.pos2026.x, milieu.pos2035.x, spreadEase),
+    z: lerp(milieu.pos2026.z, milieu.pos2035.z, spreadEase),
+    elevation: lerp(0.08, milieu.elevation2035, liftEase),
+    scale: lerp(0.86, milieu.scale2035, spreadEase),
+    share: Math.round(lerp(milieu.share2026, milieu.share2035, shareEase)),
+    opacity2035,
+    opacity2026,
   };
 }
 
 /**
- * Maps continuous slider progress [0..1] to display year [2020..2035].
+ * Maps 0..100 user coordinates (uX, uY, uZ) from the Self-Test into Three.js world space.
  */
-export function getDisplayYear(progress: number): number {
-  return Math.round(2020 + clamp01(progress) * 15);
+export function scoreToWorldCoords(
+  uX: number,
+  uY: number,
+  uZ: number,
+): { x: number; y: number; z: number } {
+  return {
+    x: ((uX - 50) / 50) * 7.2,
+    y: Math.max(0.28, (uZ / 100) * 7.5),
+    z: ((50 - uY) / 50) * 6.2,
+  };
 }
 
 /**
- * Returns the target transform and share for a milieu in either 2020 (2D) or 2035 (3D).
+ * Returns the target transform and share for a milieu in either 2026 (2D) or 2035 (3D).
  */
-export function getMilieuSnapshotForYear(
+export function getMilieuSnapshotForMode(
   milieu: MilieuSpec,
-  year: SimulationYear,
+  mode: ModelMode,
 ): MilieuFrameTarget {
-  return interpolateMilieuFrame(milieu, year === '2035' ? 1 : 0);
+  return interpolateMilieuFrame(milieu, mode === '2035' ? 1 : 0);
 }
 
 /**
- * Validates that population shares for a given simulation year sum to 100%.
+ * Validates that population shares for 2035 (6 milieus) and 2026 (10 classic milieus) both sum to 100%.
  */
-export function sumSharesForYear(year: SimulationYear, list: MilieuSpec[] = MILIEUS): number {
-  return list.reduce((acc, m) => acc + (year === '2020' ? m.share2020 : m.share2035), 0);
+export function sumShares2035(list: MilieuSpec[] = MILIEUS): number {
+  return list.reduce((acc, m) => acc + m.share2035, 0);
+}
+
+export function sumClassicShares2026(
+  list: ClassicMilieu2026Spec[] = CLASSIC_MILIEUS_2026,
+): number {
+  return list.reduce((acc, m) => acc + m.share2026, 0);
 }
 
 /**
@@ -123,13 +151,14 @@ export function resolveLabelOverlaps(
   items: LabelLayoutInput[],
   viewportWidth: number,
   viewportHeight: number,
-  margins: SafeMarginBox = { left: 24, right: 24, top: 86, bottom: 96 },
+  margins: SafeMarginBox = { left: 24, right: 24, top: 24, bottom: 24 },
 ): LabelLayoutOutput[] {
   const working = items
     .map((item) => ({ ...item }))
     .sort((a, b) => b.priority - a.priority);
 
   const clampItem = (item: LabelLayoutInput) => {
+    if (item.fixed) return;
     const halfW = item.width * 0.5;
     const halfH = item.height * 0.5;
     const minX = margins.left + halfW;
@@ -145,14 +174,15 @@ export function resolveLabelOverlaps(
     clampItem(item);
   }
 
-  const paddingX = 10;
-  const paddingY = 8;
+  const paddingX = 8;
+  const paddingY = 6;
 
-  for (let pass = 0; pass < 6; pass++) {
+  for (let pass = 0; pass < 8; pass++) {
     for (let i = 0; i < working.length; i++) {
       for (let j = i + 1; j < working.length; j++) {
         const a = working[i];
         const b = working[j];
+        if (a.fixed && b.fixed) continue;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const reqX = (a.width + b.width) * 0.5 + paddingX;
@@ -161,15 +191,17 @@ export function resolveLabelOverlaps(
         if (Math.abs(dx) < reqX && Math.abs(dy) < reqY) {
           const overlapX = reqX - Math.abs(dx);
           const overlapY = reqY - Math.abs(dy);
+          const wA = a.fixed ? 0 : b.fixed ? 1 : 0.35;
+          const wB = b.fixed ? 0 : a.fixed ? 1 : 0.65;
 
           if (overlapY <= overlapX) {
             const dir = dy >= 0 ? 1 : -1;
-            a.y -= dir * overlapY * 0.35;
-            b.y += dir * overlapY * 0.65;
+            a.y -= dir * overlapY * wA;
+            b.y += dir * overlapY * wB;
           } else {
             const dir = dx >= 0 ? 1 : -1;
-            a.x -= dir * overlapX * 0.35;
-            b.x += dir * overlapX * 0.65;
+            a.x -= dir * overlapX * wA;
+            b.x += dir * overlapX * wB;
           }
 
           clampItem(a);

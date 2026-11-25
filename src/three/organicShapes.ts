@@ -1,28 +1,47 @@
 import * as THREE from 'three';
-import type { MilieuSpec, ShapeVariant } from '../data/milieus';
+import type { ClassicMilieu2026Spec, MilieuSpec, ShapeVariant } from '../data/milieus';
 
-export interface MilieuRig {
+export interface FloatingIslandRig {
   spec: MilieuSpec;
   rootGroup: THREE.Group;
-  footprintGroup: THREE.Group;
-  coreGroup: THREE.Group;
-  topCapGroup: THREE.Group;
-  downArrowsGroup: THREE.Group | null;
+  islandGroup: THREE.Group;
+  floorAnchorGroup: THREE.Group;
+  plumbLine: THREE.Line;
+  plumbGeo: THREE.BufferGeometry;
+  plumbMat: THREE.LineDashedMaterial;
   hitMesh: THREE.Mesh;
-  coreMaterials: THREE.MeshPhysicalMaterial[];
+  slabMaterials: THREE.MeshPhysicalMaterial[];
+  undersideMat: THREE.MeshStandardMaterial;
   edgeMaterials: THREE.LineBasicMaterial[];
-  baseRimMaterial: THREE.MeshStandardMaterial;
+  anchorMat: THREE.MeshStandardMaterial;
+  shadowMat: THREE.MeshBasicMaterial;
   currentX: number;
   currentZ: number;
-  currentHeight: number;
+  currentElevation: number;
   currentScale: number;
+  lastPlumbElevation: number;
   isHovered: boolean;
   isSelected: boolean;
 }
 
-/**
- * Generates a smooth, closed organic "SINUS potato" 2D Shape from polar control points.
- */
+export interface Classic2026Rig {
+  spec: ClassicMilieu2026Spec;
+  rootGroup: THREE.Group;
+  hitMesh: THREE.Mesh;
+  fillMat: THREE.MeshPhysicalMaterial;
+  edgeMat: THREE.LineBasicMaterial;
+  isHovered: boolean;
+  isSelected: boolean;
+}
+
+export interface UserMarkerRig {
+  rootGroup: THREE.Group;
+  beaconGroup: THREE.Group;
+  plumbLine: THREE.Line;
+  plumbGeo: THREE.BufferGeometry;
+  floorDot: THREE.Mesh;
+}
+
 function createOrganicContour(
   radii: number[],
   baseRadius: number,
@@ -36,14 +55,13 @@ function createOrganicContour(
     pts.push(new THREE.Vector2(Math.cos(angle) * r, Math.sin(angle) * r));
   }
 
-  // Build closed Catmull-Rom spline sampled smoothly into a Shape
   const curve3 = new THREE.CatmullRomCurve3(
     pts.map((p) => new THREE.Vector3(p.x, p.y, 0)),
     true,
     'catmullrom',
     0.55,
   );
-  const sampled = curve3.getPoints(56);
+  const sampled = curve3.getPoints(52);
   const shape = new THREE.Shape();
   shape.moveTo(sampled[0].x, sampled[0].y);
   for (let i = 1; i < sampled.length; i++) {
@@ -53,16 +71,12 @@ function createOrganicContour(
   return shape;
 }
 
-/**
- * Creates two fractured organic halves for the "Erodierte Mitte" milieu.
- */
 function createFracturedShapes(baseRadius: number): THREE.Shape[] {
   const left = new THREE.Shape();
   const r = baseRadius;
   left.moveTo(-0.14 * r, -0.82 * r);
   left.bezierCurveTo(-0.75 * r, -0.88 * r, -1.02 * r, -0.35 * r, -0.96 * r, 0.22 * r);
   left.bezierCurveTo(-0.88 * r, 0.72 * r, -0.36 * r, 0.92 * r, -0.04 * r, 0.78 * r);
-  // Jagged fracture seam down the middle
   left.lineTo(-0.18 * r, 0.35 * r);
   left.lineTo(-0.06 * r, 0.02 * r);
   left.lineTo(-0.22 * r, -0.38 * r);
@@ -84,26 +98,25 @@ function createFracturedShapes(baseRadius: number): THREE.Shape[] {
 function getShapesForVariant(variant: ShapeVariant, radius: number): THREE.Shape[] {
   switch (variant) {
     case 'tower_triangle':
-      return [createOrganicContour([1.05, 0.82, 0.96, 0.74, 1.02, 0.86, 0.78, 0.92], radius, 0.35)];
+      return [createOrganicContour([1.02, 0.86, 0.96, 0.8, 1.0, 0.88, 0.82, 0.94], radius, 0.35)];
     case 'block_rectangle':
-      return [createOrganicContour([1.02, 1.12, 0.95, 1.08, 0.98, 1.10, 0.94, 1.06], radius, 0.4)];
+      return [createOrganicContour([1.0, 1.08, 0.95, 1.06, 0.98, 1.08, 0.94, 1.04], radius, 0.4)];
     case 'slender_pillar':
-      return [createOrganicContour([0.92, 0.78, 1.06, 0.84, 0.96, 0.76, 1.02, 0.85], radius, -0.2)];
+      return [createOrganicContour([0.94, 0.82, 1.04, 0.86, 0.96, 0.8, 1.02, 0.86], radius, -0.2)];
     case 'fractured_shards':
       return createFracturedShapes(radius);
     case 'broad_plateau':
-      return [createOrganicContour([1.08, 0.92, 1.04, 0.82, 1.10, 0.96, 0.86, 1.02, 0.92], radius, 0.15)];
+      return [createOrganicContour([1.06, 0.92, 1.02, 0.86, 1.08, 0.95, 0.88, 1.0, 0.92], radius, 0.15)];
     case 'flat_slab':
-      return [createOrganicContour([1.06, 0.88, 0.96, 1.08, 0.86, 0.98, 1.04, 0.85], radius, -0.45)];
+      return [createOrganicContour([1.04, 0.9, 0.96, 1.04, 0.88, 0.98, 1.02, 0.88], radius, -0.45)];
   }
 }
 
-/**
- * Creates a soft radial shadow canvas texture once and reuses it across pedestals.
- */
-let sharedShadowTexture: THREE.CanvasTexture | null = null;
-function getContactShadowTexture(): THREE.CanvasTexture {
-  if (sharedShadowTexture) return sharedShadowTexture;
+
+
+let sharedLightShadowTex: THREE.CanvasTexture | null = null;
+function getSoftGroundShadowTexture(): THREE.CanvasTexture {
+  if (sharedLightShadowTex) return sharedLightShadowTex;
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -113,257 +126,369 @@ function getContactShadowTexture(): THREE.CanvasTexture {
     const grad = ctx.createRadialGradient(
       size / 2,
       size / 2,
-      size * 0.1,
+      size * 0.08,
       size / 2,
       size / 2,
       size * 0.5,
     );
-    grad.addColorStop(0, 'rgba(2, 6, 23, 0.65)');
-    grad.addColorStop(0.55, 'rgba(2, 6, 23, 0.28)');
-    grad.addColorStop(1, 'rgba(2, 6, 23, 0)');
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.55)');
+    grad.addColorStop(0.55, 'rgba(0, 0, 0, 0.22)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, size, size);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  sharedShadowTexture = tex;
+  sharedLightShadowTex = tex;
   return tex;
 }
 
 /**
- * Builds a complete multi-part composite 3D pedestal for a SINUS milieu.
+ * Builds a floating translucent 3D organic island for the 2035 state,
+ * with crisp typography printed directly on top of the bubble and a vertical plumb line.
  */
-export function buildMilieuRig(
+export function buildFloatingIslandRig(
   spec: MilieuSpec,
   isSoftwareGl: boolean,
-): MilieuRig {
+  maxAnisotropy = 4,
+): FloatingIslandRig {
   const rootGroup = new THREE.Group();
-  rootGroup.name = `milieu_${spec.id}`;
+  rootGroup.name = `island_${spec.id}`;
   rootGroup.position.set(spec.pos2035.x, 0, spec.pos2035.z);
 
-  const footprintGroup = new THREE.Group();
-  rootGroup.add(footprintGroup);
+  const islandGroup = new THREE.Group();
+  islandGroup.position.y = spec.elevation2035;
+  rootGroup.add(islandGroup);
 
-  const coreGroup = new THREE.Group();
-  footprintGroup.add(coreGroup);
-
-  const topCapGroup = new THREE.Group();
-  topCapGroup.position.y = spec.height2035;
-  footprintGroup.add(topCapGroup);
+  const floorAnchorGroup = new THREE.Group();
+  rootGroup.add(floorAnchorGroup);
 
   const shapes = getShapesForVariant(spec.shapeVariant, spec.footprintRadius);
   const baseColor = new THREE.Color(spec.colorHex);
-  const brightEdgeColor = baseColor.clone().lerp(new THREE.Color('#ffffff'), 0.35);
+  const brightEdgeColor = baseColor.clone().lerp(new THREE.Color('#ffffff'), 0.42);
 
-  const coreMaterials: THREE.MeshPhysicalMaterial[] = [];
+  const slabMaterials: THREE.MeshPhysicalMaterial[] = [];
   const edgeMaterials: THREE.LineBasicMaterial[] = [];
 
-  // 1. Contact shadow grounding disc at y = 0.015
-  const shadowGeo = new THREE.CircleGeometry(spec.footprintRadius * 1.28, 32);
+  // 1. Soft contact shadow projection on floor directly under island
+  const shadowGeo = new THREE.CircleGeometry(spec.footprintRadius * 1.12, 32);
   shadowGeo.rotateX(-Math.PI / 2);
   const shadowMat = new THREE.MeshBasicMaterial({
-    map: getContactShadowTexture(),
+    map: getSoftGroundShadowTexture(),
     transparent: true,
     opacity: 0.65,
     depthWrite: false,
   });
   const shadowDisc = new THREE.Mesh(shadowGeo, shadowMat);
   shadowDisc.position.y = 0.015;
-  footprintGroup.add(shadowDisc);
+  floorAnchorGroup.add(shadowDisc);
 
-  // 2. Matte dark metallic base collar (varied roughness >= 0.25 from acrylic core)
-  const baseRimMaterial = new THREE.MeshStandardMaterial({
-    color: new THREE.Color('#131c31'),
-    emissive: baseColor.clone().multiplyScalar(0.14),
-    roughness: 0.72,
+  // 2. Floor anchor dot + ring at (0, 0.024, 0) where the plumb line meets the floor
+  const anchorMat = new THREE.MeshStandardMaterial({
+    color: baseColor,
+    emissive: baseColor,
+    emissiveIntensity: 0.45,
+    roughness: 0.35,
+    metalness: 0.1,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const dotGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.03, 20);
+  const dotMesh = new THREE.Mesh(dotGeo, anchorMat);
+  dotMesh.position.y = 0.025;
+  floorAnchorGroup.add(dotMesh);
+
+  const anchorRingGeo = new THREE.RingGeometry(0.22, 0.28, 28);
+  anchorRingGeo.rotateX(-Math.PI / 2);
+  const anchorRingMat = new THREE.MeshBasicMaterial({
+    color: brightEdgeColor,
+    transparent: true,
+    opacity: 0.55,
+    side: THREE.DoubleSide,
+  });
+  const anchorRing = new THREE.Mesh(anchorRingGeo, anchorRingMat);
+  anchorRing.position.y = 0.022;
+  floorAnchorGroup.add(anchorRing);
+
+  // 3. Dashed vertical plumb line from floor dot up to underside of floating island
+  const plumbPts = [
+    new THREE.Vector3(0, 0.04, 0),
+    new THREE.Vector3(0, spec.elevation2035 - 0.08, 0),
+  ];
+  const plumbGeo = new THREE.BufferGeometry().setFromPoints(plumbPts);
+  const plumbMat = new THREE.LineDashedMaterial({
+    color: brightEdgeColor,
+    dashSize: 0.2,
+    gapSize: 0.14,
+    transparent: true,
+    opacity: 0.72,
+  });
+  const plumbLine = new THREE.Line(plumbGeo, plumbMat);
+  plumbLine.computeLineDistances();
+  rootGroup.add(plumbLine);
+
+  // 4. Matte dark-graphite metallic underside chassis plate
+  const undersideMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color('#1c1e24'),
+    roughness: 0.65,
     metalness: 0.32,
+    transparent: true,
+    opacity: 0.94,
   });
 
-  // 3. Build extruded acrylic column(s) + top cap + glowing perimeter edges
+  // 5. Build beveled translucent floating island slab(s)
   for (const shape of shapes) {
-    // Base collar
-    const plinthGeo = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.09,
-      bevelEnabled: true,
-      bevelThickness: 0.02,
-      bevelSize: 0.05,
-      bevelSegments: 2,
-      curveSegments: 24,
-    });
-    plinthGeo.rotateX(-Math.PI / 2);
-    const plinthMesh = new THREE.Mesh(plinthGeo, baseRimMaterial);
-    plinthMesh.position.y = 0.02;
-    plinthMesh.receiveShadow = !isSoftwareGl;
-    footprintGroup.add(plinthMesh);
-
-    // Main translucent acrylic column (normalized to height = 1.0 so coreGroup.scale.y drives exact height)
-    const bodyGeo = new THREE.ExtrudeGeometry(shape, {
-      depth: 1.0,
-      bevelEnabled: false,
-      curveSegments: 28,
-    });
-    bodyGeo.rotateX(-Math.PI / 2);
-
-    const coreMat = new THREE.MeshPhysicalMaterial({
-      color: baseColor,
-      emissive: new THREE.Color(spec.emissiveHex),
-      emissiveIntensity: 0.22,
-      roughness: 0.16,
-      metalness: 0.08,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.12,
-      transparent: true,
-      opacity: isSoftwareGl ? 0.76 : 0.78,
-      transmission: isSoftwareGl ? 0 : 0.22,
-      ior: 1.48,
-      thickness: 0.8,
-      envMapIntensity: 1.15,
-    });
-    coreMaterials.push(coreMat);
-
-    const bodyMesh = new THREE.Mesh(bodyGeo, coreMat);
-    bodyMesh.castShadow = !isSoftwareGl;
-    bodyMesh.receiveShadow = !isSoftwareGl;
-    bodyMesh.userData.milieuId = spec.id;
-    coreGroup.add(bodyMesh);
-
-    // Vertical glowing contour ribs on core
-    const bodyEdges = new THREE.EdgesGeometry(bodyGeo, 28);
-    const bodyEdgeMat = new THREE.LineBasicMaterial({
-      color: brightEdgeColor,
-      transparent: true,
-      opacity: 0.42,
-    });
-    edgeMaterials.push(bodyEdgeMat);
-    const bodyEdgeLines = new THREE.LineSegments(bodyEdges, bodyEdgeMat);
-    coreGroup.add(bodyEdgeLines);
-
-    // Top beveled crown cap (stays un-squashed at topCapGroup.position.y = height)
-    const capGeo = new THREE.ExtrudeGeometry(shape, {
+    const basePlateGeo = new THREE.ExtrudeGeometry(shape, {
       depth: 0.06,
       bevelEnabled: true,
-      bevelThickness: 0.035,
-      bevelSize: 0.035,
-      bevelSegments: 3,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 2,
       curveSegments: 28,
     });
-    capGeo.rotateX(-Math.PI / 2);
+    basePlateGeo.rotateX(-Math.PI / 2);
+    const basePlateMesh = new THREE.Mesh(basePlateGeo, undersideMat);
+    basePlateMesh.position.y = -0.14;
+    basePlateMesh.scale.set(0.95, 1, 0.95);
+    basePlateMesh.receiveShadow = !isSoftwareGl;
+    islandGroup.add(basePlateMesh);
 
-    const capMat = coreMat.clone();
-    capMat.opacity = 0.92;
-    capMat.emissiveIntensity = 0.34;
-    coreMaterials.push(capMat);
+    const slabGeo = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.24,
+      bevelEnabled: true,
+      bevelThickness: 0.065,
+      bevelSize: 0.06,
+      bevelSegments: 4,
+      curveSegments: 32,
+    });
+    slabGeo.rotateX(-Math.PI / 2);
 
-    const capMesh = new THREE.Mesh(capGeo, capMat);
-    capMesh.position.y = -0.02;
-    capMesh.userData.milieuId = spec.id;
-    topCapGroup.add(capMesh);
+    const slabMat = new THREE.MeshPhysicalMaterial({
+      color: baseColor,
+      emissive: new THREE.Color(spec.emissiveHex),
+      emissiveIntensity: 0.18,
+      roughness: 0.14,
+      metalness: 0.06,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.08,
+      transparent: true,
+      opacity: isSoftwareGl ? 0.78 : 0.76,
+      transmission: isSoftwareGl ? 0 : 0.16,
+      ior: 1.48,
+      thickness: 0.5,
+      envMapIntensity: 1.25,
+    });
+    slabMaterials.push(slabMat);
 
-    // Glowing top perimeter outline
-    const capEdges = new THREE.EdgesGeometry(capGeo, 22);
-    const capEdgeMat = new THREE.LineBasicMaterial({
+    const slabMesh = new THREE.Mesh(slabGeo, slabMat);
+    slabMesh.position.y = -0.06;
+    slabMesh.castShadow = !isSoftwareGl;
+    slabMesh.receiveShadow = !isSoftwareGl;
+    slabMesh.userData.milieuId = spec.id;
+    islandGroup.add(slabMesh);
+
+    const edgesGeo = new THREE.EdgesGeometry(slabGeo, 26);
+    const edgeMat = new THREE.LineBasicMaterial({
       color: brightEdgeColor,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.72,
     });
-    edgeMaterials.push(capEdgeMat);
-    const capEdgeLines = new THREE.LineSegments(capEdges, capEdgeMat);
-    capEdgeLines.position.y = -0.02;
-    topCapGroup.add(capEdgeLines);
+    edgeMaterials.push(edgeMat);
+    const edgeLines = new THREE.LineSegments(edgesGeo, edgeMat);
+    edgeLines.position.y = -0.06;
+    islandGroup.add(edgeLines);
   }
 
-  // 4. Accent detail: subtle inner strata ring for tall Avantgarde / Digital-Adaptiv towers
-  if (spec.id === 'avantgarde' || spec.id === 'digital_adaptiv') {
-    const ringGeo = new THREE.TorusGeometry(spec.footprintRadius * 0.62, 0.035, 10, 42);
-    ringGeo.rotateX(Math.PI / 2);
-    const ringMat = new THREE.MeshStandardMaterial({
-      color: brightEdgeColor,
-      emissive: baseColor,
-      emissiveIntensity: 0.65,
-      roughness: 0.25,
-      metalness: 0.7,
-    });
-    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    ringMesh.position.y = 0.08;
-    topCapGroup.add(ringMesh);
-  }
 
-  // 5. Accent detail for Erodierte Mitte: downward dashed arrows showing descent pressure
-  let downArrowsGroup: THREE.Group | null = null;
-  if (spec.id === 'erodierte_mitte') {
-    downArrowsGroup = new THREE.Group();
-    const arrowOffsets = [
-      { x: -1.85, z: 1.55 },
-      { x: 0.0, z: 2.25 },
-      { x: 1.85, z: 1.55 },
-    ];
-    const dashMat = new THREE.LineDashedMaterial({
-      color: 0xf59e0b,
-      dashSize: 0.24,
-      gapSize: 0.14,
-      transparent: true,
-      opacity: 0.9,
-    });
-    const tipGeo = new THREE.ConeGeometry(0.14, 0.34, 12);
-    tipGeo.rotateX(Math.PI); // point down
-    const tipMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xd97706,
-      emissiveIntensity: 0.7,
-      roughness: 0.3,
-      metalness: 0.2,
-    });
 
-    for (const off of arrowOffsets) {
-      const pts = [
-        new THREE.Vector3(off.x, 1.55, off.z),
-        new THREE.Vector3(off.x, 0.32, off.z),
-      ];
-      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-      const dashedLine = new THREE.Line(lineGeo, dashMat);
-      dashedLine.computeLineDistances();
-      downArrowsGroup.add(dashedLine);
-
-      const tip = new THREE.Mesh(tipGeo, tipMat);
-      tip.position.set(off.x, 0.22, off.z);
-      downArrowsGroup.add(tip);
-    }
-    footprintGroup.add(downArrowsGroup);
-  }
-
-  // 6. Simplified invisible raycast hit proxy (clean cylinder enveloping footprint, scaled with height)
+  // 7. Simplified invisible raycast hit proxy enveloping the floating island
   const hitGeo = new THREE.CylinderGeometry(
-    spec.footprintRadius * 1.05,
-    spec.footprintRadius * 1.05,
-    1.0,
-    16,
+    spec.footprintRadius * 1.1,
+    spec.footprintRadius * 1.1,
+    0.78,
+    18,
   );
-  hitGeo.translate(0, 0.5, 0);
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+  hitMesh.position.y = 0.08;
   hitMesh.userData.milieuId = spec.id;
+  hitMesh.userData.kind = '2035';
   hitMesh.layers.set(1);
-  coreGroup.add(hitMesh);
-
-  // Initialize starting transforms to 2035
-  coreGroup.scale.y = spec.height2035;
+  islandGroup.add(hitMesh);
 
   return {
     spec,
     rootGroup,
-    footprintGroup,
-    coreGroup,
-    topCapGroup,
-    downArrowsGroup,
+    islandGroup,
+    floorAnchorGroup,
+    plumbLine,
+    plumbGeo,
+    plumbMat,
     hitMesh,
-    coreMaterials,
+    slabMaterials,
+    undersideMat,
     edgeMaterials,
-    baseRimMaterial,
+    anchorMat,
+    shadowMat,
     currentX: spec.pos2035.x,
     currentZ: spec.pos2035.z,
-    currentHeight: spec.height2035,
+    currentElevation: spec.elevation2035,
     currentScale: spec.scale2035,
+    lastPlumbElevation: spec.elevation2035,
     isHovered: false,
     isSelected: false,
+  };
+}
+
+/**
+ * Builds one of the 10 classic overlapping 2D SINUS ellipses for the 2026 floor view,
+ * with crisp typography printed directly onto the ellipse surface.
+ */
+export function buildClassic2026Rig(
+  spec: ClassicMilieu2026Spec,
+  maxAnisotropy = 4,
+): Classic2026Rig {
+  const rootGroup = new THREE.Group();
+  rootGroup.name = `classic2026_${spec.id}`;
+  rootGroup.position.set(spec.pos.x, spec.layerOffset, spec.pos.z);
+  rootGroup.rotation.y = spec.rotationY;
+
+  const shape = new THREE.Shape();
+  shape.absellipse(0, 0, spec.radiusX, spec.radiusZ, 0, Math.PI * 2, false, 0);
+
+  const discGeo = new THREE.ExtrudeGeometry(shape, {
+    depth: 0.025,
+    bevelEnabled: false,
+    curveSegments: 36,
+  });
+  discGeo.rotateX(-Math.PI / 2);
+
+  const color = new THREE.Color(spec.colorHex);
+  const brightEdge = color.clone().lerp(new THREE.Color('#ffffff'), 0.28);
+  const fillMat = new THREE.MeshPhysicalMaterial({
+    color,
+    emissive: color,
+    emissiveIntensity: 0.14,
+    roughness: 0.28,
+    metalness: 0.02,
+    transparent: true,
+    opacity: 0.3,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+
+  const discMesh = new THREE.Mesh(discGeo, fillMat);
+  rootGroup.add(discMesh);
+
+  // Crisp luminous perimeter outline
+  const pts = shape.getPoints(56).map((p) => new THREE.Vector3(p.x, 0.028, -p.y));
+  pts.push(pts[0].clone());
+  const outlineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+  const edgeMat = new THREE.LineBasicMaterial({
+    color: brightEdge,
+    transparent: true,
+    opacity: 0.9,
+  });
+  const outline = new THREE.Line(outlineGeo, edgeMat);
+  rootGroup.add(outline);
+
+  // Invisible raycast proxy on layer 1
+  const hitGeo = new THREE.CylinderGeometry(
+    Math.max(spec.radiusX, spec.radiusZ) * 0.92,
+    Math.max(spec.radiusX, spec.radiusZ) * 0.92,
+    0.25,
+    18,
+  );
+  const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+  const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+  hitMesh.scale.set(
+    spec.radiusX / Math.max(spec.radiusX, spec.radiusZ),
+    1,
+    spec.radiusZ / Math.max(spec.radiusX, spec.radiusZ),
+  );
+  hitMesh.position.y = 0.05;
+  hitMesh.userData.classicId = spec.id;
+  hitMesh.userData.kind = '2026';
+  hitMesh.layers.set(1);
+  rootGroup.add(hitMesh);
+
+  return {
+    spec,
+    rootGroup,
+    hitMesh,
+    fillMat,
+    edgeMat,
+    isHovered: false,
+    isSelected: false,
+  };
+}
+
+/**
+ * Builds the User Self-Test 3D position marker (luminous beacon sphere + halo ring + vertical plumb line).
+ */
+export function buildUserMarkerRig(): UserMarkerRig {
+  const rootGroup = new THREE.Group();
+  rootGroup.visible = false;
+
+  const beaconGroup = new THREE.Group();
+  rootGroup.add(beaconGroup);
+
+  const sphereGeo = new THREE.SphereGeometry(0.26, 24, 24);
+  const sphereMat = new THREE.MeshStandardMaterial({
+    color: 0xf7f8f8,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.4,
+    roughness: 0.18,
+    metalness: 0.25,
+  });
+  const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+  beaconGroup.add(sphere);
+
+  const ringGeo = new THREE.TorusGeometry(0.42, 0.04, 12, 32);
+  ringGeo.rotateX(Math.PI / 2);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color: 0x34d399,
+    emissive: 0x10b981,
+    emissiveIntensity: 0.55,
+    roughness: 0.22,
+    metalness: 0.45,
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  beaconGroup.add(ring);
+
+  const plumbGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0, 0.03, 0),
+    new THREE.Vector3(0, 3.0, 0),
+  ]);
+  const plumbMat = new THREE.LineDashedMaterial({
+    color: 0xf7f8f8,
+    dashSize: 0.16,
+    gapSize: 0.12,
+    transparent: true,
+    opacity: 0.85,
+  });
+  const plumbLine = new THREE.Line(plumbGeo, plumbMat);
+  plumbLine.computeLineDistances();
+  rootGroup.add(plumbLine);
+
+  const dotGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.04, 20);
+  const dotMat = new THREE.MeshStandardMaterial({
+    color: 0xf7f8f8,
+    emissive: 0xffffff,
+    emissiveIntensity: 0.35,
+    roughness: 0.25,
+  });
+  const floorDot = new THREE.Mesh(dotGeo, dotMat);
+  floorDot.position.y = 0.03;
+  rootGroup.add(floorDot);
+
+  return {
+    rootGroup,
+    beaconGroup,
+    plumbLine,
+    plumbGeo,
+    floorDot,
   };
 }

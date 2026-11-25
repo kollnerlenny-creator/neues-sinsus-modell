@@ -167,7 +167,7 @@ function buildTwoSentenceExplanation(
     digital_adaptiv:
       'Durch hohe digitale Lernbereitschaft und solide Qualifikation gehörst du zu den dynamischen Aufsteigern, die vom KI-Strukturwandel profitieren.',
     erodierte_mitte:
-      'Dein Profil spiegelt die typische Spannungslage der klassischen Mitte wider, die zwischen Modernisierungsanspruch, steigenden Lebenshaltungskosten und Abstiegssorgen balanciert.',
+      'Dein Profil spiegelt die typische Spannungslage der verunsicherten Arbeitnehmer in der Mitte wider, die zwischen Modernisierungsanspruch, steigenden Lebenshaltungskosten und Abstiegssorgen balanciert.',
     senioren:
       'Beständigkeit und soziale Absicherung stehen für dich im Vordergrund, während rasante digitale und ökonomische Umbrüche eher als Belastung erlebt werden.',
     prekariat:
