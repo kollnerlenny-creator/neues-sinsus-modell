@@ -13,10 +13,8 @@ import {
   clamp01,
   interpolateMilieuFrame,
   ndcToScreen,
-  resolveLabelOverlaps,
   scoreToWorldCoords,
   smootherstep,
-  type LabelLayoutInput,
 } from '../utils/projection';
 import {
   buildClassic2026Rig,
@@ -53,8 +51,54 @@ const _vec3 = new THREE.Vector3();
 const _camTargetTarget = new THREE.Vector3();
 const _camPosTarget = new THREE.Vector3();
 
-const DEFAULT_CAMERA_POS = new THREE.Vector3(10.8, 14.1, 21.8);
-const DEFAULT_CAMERA_TARGET = new THREE.Vector3(0.0, 2.2, 0.35);
+const DEFAULT_CAMERA_POS = new THREE.Vector3(12.6, 16.4, 26.5);
+const DEFAULT_CAMERA_TARGET = new THREE.Vector3(-0.3, 1.2, 1.25);
+
+function createAxisSpriteTexture(
+  title: string,
+  subtitle: string | undefined,
+  accentColor: string,
+): { texture: THREE.CanvasTexture; aspect: number } {
+  const canvas = document.createElement('canvas');
+  const width = 560;
+  const height = subtitle ? 148 : 92;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.fillStyle = 'rgba(10, 12, 16, 0.94)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(6, 6, width - 12, height - 12, 22);
+    ctx.fill();
+    ctx.stroke();
+
+    // Top subtle Linear highlight edge
+    ctx.fillStyle = accentColor;
+    ctx.beginPath();
+    ctx.roundRect(24, 14, width - 48, 5, 3);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '700 34px "Plus Jakarta Sans", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, width / 2, subtitle ? 58 : height / 2 + 2);
+
+    if (subtitle) {
+      ctx.fillStyle = accentColor === '#f8fafc' ? '#cbd5e1' : accentColor;
+      ctx.font = '600 24px "Plus Jakarta Sans", system-ui, sans-serif';
+      ctx.fillText(subtitle, width / 2, 106);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return { texture, aspect: width / height };
+}
 
 function detectSoftwareGl(): boolean {
   const probe = document.createElement('canvas');
@@ -101,6 +145,7 @@ export class SinusSceneManager {
   private hovered: SelectionPayload | null = null;
 
   private isCameraTweening = false;
+  private fullscreenZoom = false;
   private lastTickMs = 0;
 
   private frameId = 0;
@@ -120,10 +165,10 @@ export class SinusSceneManager {
     const width = Math.max(container.clientWidth, 320);
     const height = Math.max(container.clientHeight, 240);
 
-    // 1. Dark Linear Editorial Scene (#0b0c0e)
+    // 1. Pure-black Linear Editorial Scene (#040406) fading smoothly at horizon
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0b0c0e);
-    this.scene.fog = new THREE.FogExp2(0x0b0c0e, 0.0072);
+    this.scene.background = new THREE.Color(0x040406);
+    this.scene.fog = new THREE.FogExp2(0x040406, 0.0082);
 
     // 2. Responsive Camera
     const initMetrics = this.getViewportCameraMetrics(width, height);
@@ -164,9 +209,10 @@ export class SinusSceneManager {
     this.scene.environment = this.envTexture;
     pmrem.dispose();
 
-    // 5. OrbitControls
+    // 5. OrbitControls (wheel zoom disabled by default so page scrolling never zooms accidentally)
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.copy(DEFAULT_CAMERA_TARGET);
+    this.controls.enableZoom = false;
     this.controls.enableDamping = !this.isSoftwareGl;
     this.controls.dampingFactor = 0.065;
     this.controls.minDistance = 8.5;
@@ -188,8 +234,8 @@ export class SinusSceneManager {
     // 6. Lighting Rig
     this.setupLighting();
 
-    // 7. Light Floor Plate, Fine Grid & Dark Axis Beams
-    this.setupCoordinateFloorAndAxes();
+    // 7. Floor Plate, Fine Grid, Axis Beams & Engraved 3D Axis Plaques
+    this.setupCoordinateFloorAndAxes(maxAnisotropy);
 
     // 8. 6 Floating 2035 Islands (with on-bubble labels)
     for (const spec of MILIEUS) {
@@ -266,17 +312,17 @@ export class SinusSceneManager {
     this.scene.add(rimLight);
   }
 
-  private setupCoordinateFloorAndAxes(): void {
-    // Matte obsidian architectural floor plate
-    const floorGeo = new THREE.PlaneGeometry(23, 18.5);
+  private setupCoordinateFloorAndAxes(maxAnisotropy: number): void {
+    // Matte pure-black architectural floor plate blending into dark canvas
+    const floorGeo = new THREE.PlaneGeometry(24.0, 18.8);
     floorGeo.rotateX(-Math.PI / 2);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x101216,
+      color: 0x0b0d11,
       roughness: 0.92,
       metalness: 0.08,
     });
     const floorMesh = new THREE.Mesh(floorGeo, floorMat);
-    floorMesh.position.y = -0.025;
+    floorMesh.position.set(-0.3, -0.025, 0.25);
     floorMesh.receiveShadow = !this.isSoftwareGl;
     this.scene.add(floorMesh);
 
@@ -344,6 +390,56 @@ export class SinusSceneManager {
     yConeBack.position.set(-9.8, 0.035, -7.3);
     axisGroup.add(yConeBack);
 
+    // Crisp camera-facing 3D Sprite placards anchored on perimeter stanchion pins (readable from every orbit angle)
+    const pinGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.72, 8);
+    const baseDotGeo = new THREE.CircleGeometry(0.11, 16);
+    baseDotGeo.rotateX(-Math.PI / 2);
+
+    const addAxisSign = (
+      title: string,
+      subtitle: string | undefined,
+      accentColor: string,
+      x: number,
+      z: number,
+      spriteScale = 3.55,
+    ) => {
+      const pinColor = new THREE.Color(accentColor);
+      const pinMat = new THREE.MeshBasicMaterial({
+        color: pinColor,
+        transparent: true,
+        opacity: 0.65,
+      });
+      const pin = new THREE.Mesh(pinGeo, pinMat);
+      pin.position.set(x, 0.36, z);
+      axisGroup.add(pin);
+
+      const dot = new THREE.Mesh(baseDotGeo, pinMat);
+      dot.position.set(x, 0.03, z);
+      axisGroup.add(dot);
+
+      const { texture, aspect } = createAxisSpriteTexture(title, subtitle, accentColor);
+      texture.anisotropy = maxAnisotropy;
+      const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+      sprite.position.set(x, 1.22, z);
+      sprite.scale.set(spriteScale, spriteScale / aspect, 1);
+      axisGroup.add(sprite);
+    };
+
+    // X-Axis signs along front rim
+    addAxisSign('← Tradition & Bewahrung', 'Sicherheit · Bestand', '#cbd5e1', -6.6, 7.95, 4.0);
+    addAxisSign('X · Grundorientierung', 'Werteachse', '#f8fafc', 0.0, 8.05, 3.65);
+    addAxisSign('Neuorientierung · Öko/Tech →', 'Transformation', '#34d399', 6.6, 7.95, 4.1);
+
+    // Y-Axis signs along left rim
+    addAxisSign('Untere Schicht', 'Geringe Ressourcen', '#f87171', -10.35, 5.1, 3.65);
+    addAxisSign('Y · Soziale Lage', 'Mittlere Schicht', '#f8fafc', -10.35, 0.0, 3.65);
+    addAxisSign('Oberschicht', 'Wohlstand · Bildung', '#34d399', -10.35, -5.1, 3.65);
+
     // Z-Axis (Vertical Resilience) mast at back-right (scale 0..100 -> 0..7.5 units)
     const zAxisGroup = new THREE.Group();
     const zMat = new THREE.MeshStandardMaterial({
@@ -367,6 +463,21 @@ export class SinusSceneManager {
       tick.position.set(9.2, h, -5.8);
       zAxisGroup.add(tick);
     }
+
+    // Crisp 3D sprite cap on top of Z-axis mast
+    const { texture: zTopTex, aspect: zTopAspect } = createAxisSpriteTexture(
+      'Z · Resilienz 2035',
+      'Schutzhöhe 0–100',
+      '#34d399',
+    );
+    zTopTex.anisotropy = maxAnisotropy;
+    const zTopSprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: zTopTex, transparent: true, depthWrite: false }),
+    );
+    zTopSprite.position.set(9.2, 8.5, -5.8);
+    zTopSprite.scale.set(3.45, 3.45 / zTopAspect, 1);
+    zAxisGroup.add(zTopSprite);
+
     this.zAxisGroup = zAxisGroup;
     axisGroup.add(zAxisGroup);
 
@@ -401,12 +512,31 @@ export class SinusSceneManager {
 
   private bindEvents(): void {
     const dom = this.renderer.domElement;
+    dom.addEventListener('wheel', this.onCanvasWheel, { capture: true, passive: true });
     dom.addEventListener('pointerdown', this.onPointerDown);
     dom.addEventListener('pointerup', this.onPointerUp);
     dom.addEventListener('pointermove', this.onPointerMove);
+    dom.addEventListener('pointerleave', this.onPointerLeave);
     dom.addEventListener('webglcontextlost', this.onWebglContextLost);
     dom.addEventListener('webglcontextrestored', this.onWebglContextRestored);
   }
+
+  private onCanvasWheel = (e: WheelEvent): void => {
+    const allowZoom = this.fullscreenZoom || e.ctrlKey || e.metaKey;
+    this.controls.enableZoom = allowZoom;
+    if (!this.fullscreenZoom && allowZoom) {
+      queueMicrotask(() => {
+        if (!this.isDisposed) {
+          this.controls.enableZoom = this.fullscreenZoom;
+        }
+      });
+    }
+  };
+
+  private onPointerLeave = (): void => {
+    this.container.removeAttribute('data-hover-3d');
+    this.container.removeAttribute('data-canvas-grabbing');
+  };
 
   private onWebglContextLost = (e: Event): void => {
     e.preventDefault();
@@ -433,9 +563,11 @@ export class SinusSceneManager {
   private onPointerDown = (e: PointerEvent): void => {
     this.pointerDownPos.x = e.clientX;
     this.pointerDownPos.y = e.clientY;
+    this.container.setAttribute('data-canvas-grabbing', 'true');
   };
 
   private onPointerUp = (e: PointerEvent): void => {
+    this.container.removeAttribute('data-canvas-grabbing');
     const dist = Math.hypot(
       e.clientX - this.pointerDownPos.x,
       e.clientY - this.pointerDownPos.y,
@@ -493,7 +625,12 @@ export class SinusSceneManager {
       for (const [id, rig] of this.classicRigs) {
         rig.isHovered = nextHover?.kind === '2026' && nextHover.id === id;
       }
-      this.renderer.domElement.style.cursor = nextHover ? 'pointer' : 'grab';
+      if (document.documentElement.classList.contains('has-custom-cursor')) {
+        this.renderer.domElement.style.cursor = 'none';
+      } else {
+        this.renderer.domElement.style.cursor = nextHover ? 'pointer' : 'grab';
+      }
+      this.container.setAttribute('data-hover-3d', nextHover ? 'true' : 'false');
       this.callbacks.onHover(nextHover);
       if (this.isSoftwareGl) this.requestRender();
     }
@@ -612,7 +749,7 @@ export class SinusSceneManager {
       const width = Math.max(this.container.clientWidth, 280);
       const height = Math.max(this.container.clientHeight, 240);
       const { isMobile } = this.getViewportCameraMetrics(width, height);
-      const shiftX = width > 900 ? 1.5 : 0;
+      const shiftX = width > 900 ? 2.4 : 0;
       const shiftYMobile = isMobile ? -0.95 : 0;
 
       if (selection.kind === '2035') {
@@ -628,14 +765,14 @@ export class SinusSceneManager {
           _camPosTarget.set(
             snap.x + shiftX + offX,
             Math.max(5.5, snap.elevation + (isMobile ? 5.2 : 3.8)),
-            snap.z + (isMobile ? 11.4 : 9.2),
+            snap.z + (isMobile ? 11.4 : 9.4),
           );
           this.isCameraTweening = true;
         }
       } else {
         const rig = this.classicRigs.get(selection.id);
         if (rig) {
-          const shift2026 = width > 900 ? 1.2 : 0;
+          const shift2026 = width > 900 ? 2.0 : 0;
           _camTargetTarget.set(
             rig.spec.pos.x + shift2026,
             0.25 + (isMobile ? -0.7 : 0),
@@ -650,6 +787,27 @@ export class SinusSceneManager {
         }
       }
     }
+    if (this.isSoftwareGl) this.requestRender();
+  }
+
+  public setFullscreenZoom(enabled: boolean): void {
+    this.fullscreenZoom = enabled;
+    this.controls.enableZoom = enabled;
+  }
+
+  public zoomByStep(direction: 'in' | 'out'): void {
+    const factor = direction === 'in' ? 0.8 : 1.25;
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const currentDist = Math.max(0.01, offset.length());
+    const nextDist = THREE.MathUtils.clamp(
+      currentDist * factor,
+      this.controls.minDistance,
+      this.controls.maxDistance,
+    );
+    offset.setLength(nextDist);
+    _camTargetTarget.copy(this.controls.target);
+    _camPosTarget.copy(this.controls.target).add(offset);
+    this.isCameraTweening = true;
     if (this.isSoftwareGl) this.requestRender();
   }
 
@@ -858,127 +1016,27 @@ export class SinusSceneManager {
     if (width <= 0 || height <= 0) return;
 
     this.camera.updateMatrixWorld();
-    const hasSelection = this.selection !== null;
     const isMobile = width < 640;
-    const rightSafe = hasSelection && width > 900 ? 400 : isMobile ? 10 : 28;
-    const margins = {
-      left: isMobile ? 10 : 28,
-      right: rightSafe,
-      top: isMobile ? 56 : 54,
-      bottom: isMobile ? 42 : 42,
-    };
 
-    const show2035Badges = this.currentProgress >= 0.45;
-    const showAxes = !hasSelection;
-
-    const jointInputs: LabelLayoutInput[] = [];
-    const visMap: Record<string, boolean> = {};
-
-    // Project visible bubbles as fixed collision obstacles so axis badges are pushed cleanly around them
-    if (showAxes) {
-      if (show2035Badges) {
-        for (const rig of this.islandRigs.values()) {
-          if (!rig.rootGroup.visible) continue;
-          _vec3.set(rig.currentX, rig.currentElevation + 0.25, rig.currentZ);
-          _vec3.project(this.camera);
-          const bs = ndcToScreen(_vec3.x, _vec3.y, _vec3.z, width, height);
-          if (bs.visible) {
-            jointInputs.push({
-              id: `obs:${rig.spec.id}`,
-              x: bs.x,
-              y: bs.y,
-              width: isMobile ? 104 : 144,
-              height: isMobile ? 64 : 90,
-              priority: 220,
-              fixed: true,
-            });
-          }
-        }
-      } else {
-        for (const rig of this.classicRigs.values()) {
-          _vec3.set(rig.spec.pos.x, 0.1, rig.spec.pos.z);
-          _vec3.project(this.camera);
-          const bs = ndcToScreen(_vec3.x, _vec3.y, _vec3.z, width, height);
-          if (bs.visible) {
-            jointInputs.push({
-              id: `obs:${rig.spec.id}`,
-              x: bs.x,
-              y: bs.y,
-              width: isMobile ? 76 : 108,
-              height: isMobile ? 44 : 64,
-              priority: 220,
-              fixed: true,
-            });
-          }
-        }
-      }
-    }
-
-    const zScale = this.zAxisGroup ? this.zAxisGroup.scale.y : 1;
-    for (const ax of AXIS_LABELS) {
-      const skipOnMobile =
-        isMobile && (ax.id === 'axis-x-mid' || ax.id === 'axis-y-mid');
-      const worldY =
-        ax.id === 'axis-z-top'
-          ? 0.55 + zScale * (isMobile ? 8.15 : 7.65)
-          : ax.worldPos.y;
-      _vec3.set(ax.worldPos.x, worldY, ax.worldPos.z);
-      _vec3.project(this.camera);
-      const screen = ndcToScreen(_vec3.x, _vec3.y, _vec3.z, width, height);
-      const zAllowed = ax.id !== 'axis-z-top' || show2035Badges;
-      const visible = showAxes && !skipOnMobile && zAllowed && screen.visible;
-      visMap[`axis:${ax.id}`] = visible;
-      if (visible) {
-        jointInputs.push({
-          id: `axis:${ax.id}`,
-          x: screen.x,
-          y: screen.y,
-          width: isMobile ? 96 : 190,
-          height: isMobile ? 22 : 38,
-          priority: ax.id === 'axis-z-top' ? 20 : 10,
-        });
-      }
-    }
-
-    // Project User Self-Test Marker Label
+    // Project User Self-Test Marker Label (axis labels are fixed in 3D world space on the floor rim)
     _vec3.set(this.userWorldPos.x, this.userWorldPos.y + 0.62, this.userWorldPos.z);
     _vec3.project(this.camera);
     const uScreen = ndcToScreen(_vec3.x, _vec3.y, _vec3.z, width, height);
     const userVisible =
       this.hasUserMarker && this.currentProgress > 0.45 && uScreen.visible;
-    visMap['user-marker'] = userVisible;
-    if (userVisible) {
-      jointInputs.push({
-        id: 'user-marker',
-        x: uScreen.x,
-        y: uScreen.y,
-        width: isMobile ? 148 : 176,
-        height: isMobile ? 46 : 54,
-        priority: 150,
-      });
-    }
-
-    const resolvedAll = resolveLabelOverlaps(jointInputs, width, height, margins);
-    const resolvedById = Object.fromEntries(resolvedAll.map((r) => [r.id, r]));
 
     const axisPositions: Record<string, ProjectedLabelPosition> = {};
     for (const ax of AXIS_LABELS) {
-      const key = `axis:${ax.id}`;
-      const r = resolvedById[key];
-      axisPositions[ax.id] = {
-        id: ax.id,
-        x: r ? r.x : 0,
-        y: r ? r.y : 0,
-        visible: Boolean(visMap[key] && r),
-      };
+      axisPositions[ax.id] = { id: ax.id, x: 0, y: 0, visible: false };
     }
 
-    const resolvedUser = resolvedById['user-marker'];
+    const clampMarginX = isMobile ? 88 : 110;
+    const clampMarginY = isMobile ? 36 : 42;
     const userMarkerPosition: ProjectedLabelPosition = {
       id: 'user-marker',
-      x: resolvedUser ? resolvedUser.x : Math.round(uScreen.x),
-      y: resolvedUser ? resolvedUser.y : Math.round(uScreen.y),
-      visible: Boolean(userVisible && resolvedUser),
+      x: Math.round(Math.min(width - clampMarginX, Math.max(clampMarginX, uScreen.x))),
+      y: Math.round(Math.min(height - clampMarginY, Math.max(clampMarginY, uScreen.y))),
+      visible: userVisible,
     };
 
     this.callbacks.onLabelsFrame(axisPositions, userMarkerPosition);
@@ -1058,9 +1116,11 @@ export class SinusSceneManager {
     this.resizeObserver.disconnect();
 
     const dom = this.renderer.domElement;
+    dom.removeEventListener('wheel', this.onCanvasWheel, { capture: true });
     dom.removeEventListener('pointerdown', this.onPointerDown);
     dom.removeEventListener('pointerup', this.onPointerUp);
     dom.removeEventListener('pointermove', this.onPointerMove);
+    dom.removeEventListener('pointerleave', this.onPointerLeave);
     dom.removeEventListener('webglcontextlost', this.onWebglContextLost);
     dom.removeEventListener('webglcontextrestored', this.onWebglContextRestored);
 
@@ -1079,6 +1139,9 @@ export class SinusSceneManager {
         } else {
           obj.material.dispose();
         }
+      } else if (obj instanceof THREE.Sprite) {
+        obj.material.map?.dispose();
+        obj.material.dispose();
       }
     });
 

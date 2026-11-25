@@ -1,7 +1,10 @@
 import { MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { CustomCircleCursor } from './components/CustomCircleCursor';
 import { DistributionSection } from './components/DistributionSection';
 import { Hero3DStage } from './components/Hero3DStage';
+import { HeroHookSection } from './components/HeroHookSection';
+import { IntroTimelineSplash } from './components/IntroTimelineSplash';
 import { MilieusGridSection } from './components/MilieusGridSection';
 import { Navbar } from './components/Navbar';
 import { SelfTestSection } from './components/SelfTestSection';
@@ -19,13 +22,18 @@ import {
   type SelectionPayload,
 } from './three/SinusSceneManager';
 
+function shouldSkipIntroOnLoad(): boolean {
+  if (typeof window === 'undefined') return true;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('autostart') === '1' || params.has('milieu');
+}
+
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SinusSceneManager | null>(null);
-
-  const axisLabelRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const userMarkerLabelRef = useRef<HTMLDivElement | null>(null);
 
+  const [showIntro, setShowIntro] = useState<boolean>(() => !shouldSkipIntroOnLoad());
   const [mode, setMode] = useState<ModelMode>('2035');
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
   const [contextLost, setContextLost] = useState(false);
@@ -36,30 +44,13 @@ export default function App() {
     uZ: number;
   } | null>(null);
 
-  const smoothedAxisRef = useRef<Record<string, { x: number; y: number }>>({});
   const smoothedUserRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   const handleLabelsFrame = useCallback(
     (
-      axisPositions: Record<string, ProjectedLabelPosition>,
+      _axisPositions: Record<string, ProjectedLabelPosition>,
       userMarkerPosition: ProjectedLabelPosition,
     ) => {
-      for (const id of Object.keys(axisPositions)) {
-        const pos = axisPositions[id];
-        const el = axisLabelRefs.current[id];
-        if (!el) continue;
-        if (!pos.visible) {
-          el.style.opacity = '0';
-        } else {
-          el.style.opacity = '1';
-          const prev = smoothedAxisRef.current[id] || { x: pos.x, y: pos.y };
-          const sx = prev.x + (pos.x - prev.x) * 0.32;
-          const sy = prev.y + (pos.y - prev.y) * 0.32;
-          smoothedAxisRef.current[id] = { x: sx, y: sy };
-          el.style.transform = `translate3d(${Math.round(sx)}px, ${Math.round(sy)}px, 0) translate(-50%, -50%)`;
-        }
-      }
-
       const uEl = userMarkerLabelRef.current;
       if (uEl) {
         if (!userMarkerPosition.visible) {
@@ -77,7 +68,7 @@ export default function App() {
     [],
   );
 
-  // Sync dynamic canonical & OpenGraph URL tags + parse deep-link query params
+  // Sync dynamic canonical & OpenGraph URL tags
   useEffect(() => {
     const baseUrl = `${window.location.origin}${window.location.pathname}`;
     const absoluteImg = `${window.location.origin}/og-preview.jpg`;
@@ -149,6 +140,13 @@ export default function App() {
         setSelection(sel);
         manager.applySelection(sel, true);
       }
+      window.requestAnimationFrame(() => {
+        document.getElementById('modell-3d')?.scrollIntoView({ behavior: 'auto' });
+      });
+    } else if (paramMode === '2026') {
+      window.requestAnimationFrame(() => {
+        document.getElementById('modell-3d')?.scrollIntoView({ behavior: 'auto' });
+      });
     }
 
     return () => {
@@ -175,6 +173,14 @@ export default function App() {
 
   const handleStageResize = useCallback(() => {
     sceneRef.current?.handleResize();
+  }, []);
+
+  const handleZoomStep = useCallback((dir: 'in' | 'out') => {
+    sceneRef.current?.zoomByStep(dir);
+  }, []);
+
+  const handleFullscreenChange = useCallback((fullscreen: boolean) => {
+    sceneRef.current?.setFullscreenZoom(fullscreen);
   }, []);
 
   const handleStep2035 = useCallback(
@@ -220,15 +226,20 @@ export default function App() {
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="relative min-h-screen bg-[#08090a] text-[#f7f8f8]">
-        {/* Subtle Linear-style white ambient light points in the background */}
+      <div className="relative min-h-screen bg-[#040406] text-[#f7f8f8]">
+        <CustomCircleCursor />
+        {showIntro && (
+          <IntroTimelineSplash onComplete={() => setShowIntro(false)} />
+        )}
+
+        {/* Subtle Linear-style ambient light points fading into black */}
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-0"
           style={{
             backgroundImage: [
-              'radial-gradient(760px circle at 50% 4%, rgba(255, 255, 255, 0.075), transparent 70%)',
-              'radial-gradient(620px circle at 50% 56%, rgba(255, 255, 255, 0.028), transparent 74%)',
+              'radial-gradient(900px circle at 50% 0%, rgba(255, 255, 255, 0.075), transparent 64%)',
+              'radial-gradient(640px circle at 50% 62%, rgba(16, 185, 129, 0.025), transparent 72%)',
             ].join(', '),
           }}
         />
@@ -237,11 +248,12 @@ export default function App() {
           <Navbar onOpenShare={() => setShareOpen(true)} />
 
           <main>
+            <HeroHookSection />
+
             <Hero3DStage
               mode={mode}
               onChangeMode={handleChangeMode}
               canvasMountRef={canvasMountRef}
-              axisLabelRefs={axisLabelRefs}
               userMarkerLabelRef={userMarkerLabelRef}
               selection={selection}
               onStep2035={handleStep2035}
@@ -254,6 +266,8 @@ export default function App() {
                 setSelection(sel);
                 sceneRef.current?.applySelection(sel, true);
               }}
+              onZoomStep={handleZoomStep}
+              onFullscreenChange={handleFullscreenChange}
             />
 
             <MilieusGridSection onFocusIn3D={handleFocusMilieuFromGrid} />
@@ -265,8 +279,8 @@ export default function App() {
             <SelfTestSection onViewResultIn3D={handleViewSelfTestResultIn3D} />
           </main>
 
-          <footer className="border-t border-white/[0.06] py-8">
-            <div className="mx-auto flex max-w-[1280px] flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 text-xs text-[#62666d] text-center sm:text-left">
+          <footer className="border-t border-white/[0.06] py-10">
+            <div className="mx-auto flex max-w-[1280px] flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 text-sm text-[#8a8f98] text-center sm:text-left">
               <span>
                 SOZIALSTRUKTUR DEUTSCHLAND 2035 · Das schwebende 3D-SINUS-Modell
               </span>
