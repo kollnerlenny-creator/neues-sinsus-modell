@@ -6,7 +6,7 @@
 3. Every response in `/surveys/{surveyCode}/responses/{responseId}` requires an existing `active` parent `/surveys/{surveyCode}` document (Master Gate).
 4. `code == surveyCode` on `SurveySession`, `surveyCode == surveyCode && clientId == responseId` on `SurveyResponse`, and `sectionId == sectionId` on `SiteContent` documents.
 5. `uX`, `uY`, `uZ` are strictly bounded numbers `[0, 100]`, `milieuId` is restricted to the 6 valid 2035 milieu IDs, and `createdAt == request.time`.
-6. `/siteContent/{sectionId}` documents are strictly bounded to the 7 valid section IDs (`meta`, `milieus_2035`, `milieus_2026`, `axes_rifts`, `transformation`, `distribution`, `self_test`), publicly readable via `allow get`, and writable (`create`, `update`, `delete`) exclusively by a verified Admin (`request.auth.token.email_verified == true && request.auth.token.email == 'm91681001@gmail.com'` or an existing `/admins/{uid}` record).
+6. `/siteContent/{sectionId}` documents are strictly bounded to the 7 valid section IDs (`meta`, `milieus_2035`, `milieus_2026`, `axes_rifts`, `transformation`, `distribution`, `self_test`), publicly readable via `allow get`, and writable (`create`, `update`, `delete`) exclusively by a verified Admin (`request.auth.token.email_verified == true && request.auth.token.email in ['m91681001@gmail.com', 'lenny.koellner@gmail.com']` or an existing `/admins/{uid}` record).
 7. Every `/siteContent/{sectionId}` write validates `updatedBy == request.auth.uid`, `updatedAt == request.time`, exact allowed keys (`hasAll` + `hasOnly`), string `.size()` limits, bounded array sizes with first-element type checks, and immutable `sectionId` on update.
 
 ## Dirty Dozen Adversarial Payloads (Must Return PERMISSION_DENIED)

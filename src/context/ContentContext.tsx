@@ -17,6 +17,8 @@ import {
   checkUserIsAdmin,
   resetSiteContentSection,
   saveSiteContentSection,
+  sendAdminVerificationEmail,
+  signInAdminWithEmailPassword,
   signInAdminWithGoogle,
   signOutAdmin,
   subscribeToSiteContent,
@@ -30,6 +32,9 @@ interface ContentContextValue {
   adminCheckLoading: boolean;
   rulesMissingWarning: boolean;
   signInWithGoogle: () => Promise<User>;
+  signInWithEmailPassword: (email: string, password: string) => Promise<User>;
+  sendVerificationEmail: () => Promise<void>;
+  refreshAdminStatus: () => Promise<boolean>;
   signOut: () => Promise<void>;
   saveSection: <K extends ContentSectionId>(
     sectionId: K,
@@ -51,6 +56,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const [adminCheckLoading, setAdminCheckLoading] = useState(false);
   const [rulesMissingWarning, setRulesMissingWarning] = useState(false);
   const [subVersion, setSubVersion] = useState(0);
+  const [, setAuthRefreshTick] = useState(0);
 
   // 1. Track Firebase Auth state and verify admin authorization
   useEffect(() => {
@@ -105,6 +111,40 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     setSubVersion((v) => v + 1);
   }, []);
 
+  const sendVerificationEmail = useCallback(async () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Nicht angemeldet.');
+    }
+    await sendAdminVerificationEmail(currentUser);
+  }, []);
+
+  const refreshAdminStatus = useCallback(async (): Promise<boolean> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      setUser(null);
+      setIsAdmin(false);
+      return false;
+    }
+    setAdminCheckLoading(true);
+    try {
+      await currentUser.reload();
+      await currentUser.getIdToken(true);
+      const updatedUser = auth.currentUser;
+      setUser(updatedUser);
+      setAuthRefreshTick((t) => t + 1);
+      if (updatedUser) {
+        const allowed = await checkUserIsAdmin(updatedUser);
+        setIsAdmin(allowed);
+        return allowed;
+      }
+      setIsAdmin(false);
+      return false;
+    } finally {
+      setAdminCheckLoading(false);
+    }
+  }, []);
+
   const saveSection = useCallback(
     async <K extends ContentSectionId>(
       sectionId: K,
@@ -139,6 +179,9 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         adminCheckLoading,
         rulesMissingWarning,
         signInWithGoogle: signInAdminWithGoogle,
+        signInWithEmailPassword: signInAdminWithEmailPassword,
+        sendVerificationEmail,
+        refreshAdminStatus,
         signOut: signOutAdmin,
         saveSection,
         resetSection,

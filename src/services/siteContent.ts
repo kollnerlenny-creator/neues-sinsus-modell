@@ -1,5 +1,7 @@
 import {
   GoogleAuthProvider,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
   type User,
@@ -22,7 +24,17 @@ import {
 import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils/firestoreErrors';
 
-export const PRIMARY_ADMIN_EMAIL = 'm91681001@gmail.com';
+export const ADMIN_EMAILS = [
+  'm91681001@gmail.com',
+  'lenny.koellner@gmail.com',
+] as const;
+
+export const PRIMARY_ADMIN_EMAIL = ADMIN_EMAILS[0];
+
+export function isAuthorizedAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.includes(email.toLowerCase() as (typeof ADMIN_EMAILS)[number]);
+}
 
 export async function signInAdminWithGoogle(): Promise<User> {
   const provider = new GoogleAuthProvider();
@@ -31,16 +43,25 @@ export async function signInAdminWithGoogle(): Promise<User> {
   return cred.user;
 }
 
+export async function signInAdminWithEmailPassword(
+  email: string,
+  password: string,
+): Promise<User> {
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return cred.user;
+}
+
+export async function sendAdminVerificationEmail(user: User): Promise<void> {
+  await sendEmailVerification(user);
+}
+
 export async function signOutAdmin(): Promise<void> {
   await signOut(auth);
 }
 
 export async function checkUserIsAdmin(user: User | null): Promise<boolean> {
   if (!user) return false;
-  if (
-    user.emailVerified &&
-    user.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL
-  ) {
+  if (user.emailVerified && isAuthorizedAdminEmail(user.email)) {
     return true;
   }
 
@@ -130,7 +151,7 @@ export async function saveSiteContentSection<K extends ContentSectionId>(
 ): Promise<SiteContentState[K]> {
   const user = auth.currentUser;
   if (!user) {
-    throw new Error('Nicht angemeldet. Bitte zuerst mit Google anmelden.');
+    throw new Error('Nicht angemeldet. Bitte zuerst anmelden.');
   }
 
   const sanitized = sanitizeSectionData(sectionId, data);
@@ -153,7 +174,7 @@ export async function resetSiteContentSection(
 ): Promise<void> {
   const user = auth.currentUser;
   if (!user) {
-    throw new Error('Nicht angemeldet. Bitte zuerst mit Google anmelden.');
+    throw new Error('Nicht angemeldet. Bitte zuerst anmelden.');
   }
   const docPath = `siteContent/${sectionId}`;
   try {

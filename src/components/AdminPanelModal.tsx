@@ -8,6 +8,7 @@ import {
   ListChecks,
   Lock,
   LogOut,
+  Mail,
   PieChart,
   Plus,
   RefreshCw,
@@ -20,7 +21,13 @@ import {
   X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+} from 'react';
 import { useSiteContent } from '../context/ContentContext';
 import type { ShapeVariant } from '../data/milieus';
 import {
@@ -29,7 +36,7 @@ import {
   type ContentSectionId,
   type SiteContentState,
 } from '../data/siteContentDefaults';
-import { PRIMARY_ADMIN_EMAIL } from '../services/siteContent';
+import { ADMIN_EMAILS, isAuthorizedAdminEmail } from '../services/siteContent';
 
 interface AdminPanelModalProps {
   open: boolean;
@@ -64,7 +71,7 @@ const COPYABLE_FIRESTORE_RULES_HINT = `// Ergänzung für firestore.rules im ext
 function isAdmin() {
   return request.auth != null && (
     (request.auth.token.email_verified == true
-      && request.auth.token.email == '${PRIMARY_ADMIN_EMAIL}') ||
+      && request.auth.token.email in [${ADMIN_EMAILS.map((e) => `'${e}'`).join(', ')}]) ||
     exists(/databases/$(database)/documents/admins/$(request.auth.uid))
   );
 }
@@ -105,8 +112,24 @@ function mapAuthError(err: unknown): string {
   if (code.includes('unauthorized-domain')) {
     return 'Diese Domain ist in der Firebase Console unter Authentication → Settings → Authorized domains noch nicht freigeschaltet.';
   }
+  if (
+    code.includes('invalid-credential') ||
+    code.includes('wrong-password') ||
+    code.includes('user-not-found')
+  ) {
+    return 'E-Mail oder Passwort ist falsch (oder dieses Konto wurde noch nicht in Firebase Authentication angelegt).';
+  }
+  if (code.includes('invalid-email')) {
+    return 'Bitte eine gültige E-Mail-Adresse eingeben.';
+  }
+  if (code.includes('missing-password')) {
+    return 'Bitte ein Passwort eingeben.';
+  }
+  if (code.includes('too-many-requests')) {
+    return 'Zu viele Anmeldeversuche. Bitte kurz warten und erneut versuchen.';
+  }
   if (code.includes('operation-not-allowed')) {
-    return 'Google-Anmeldung ist im Firebase-Projekt unter Authentication → Sign-in method noch nicht aktiviert.';
+    return 'Diese Anmeldemethode ist im Firebase-Projekt unter Authentication → Sign-in method noch nicht aktiviert.';
   }
   return `Anmeldung fehlgeschlagen: ${msg}`;
 }
@@ -120,6 +143,9 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
     adminCheckLoading,
     rulesMissingWarning,
     signInWithGoogle,
+    signInWithEmailPassword,
+    sendVerificationEmail,
+    refreshAdminStatus,
     signOut,
     saveSection,
     resetSection,
@@ -143,8 +169,15 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
   const [selected2035Idx, setSelected2035Idx] = useState(0);
   const [selected2026Idx, setSelected2026Idx] = useState(0);
 
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{
     type: 'success' | 'error';
@@ -201,12 +234,73 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
   const handleGoogleLogin = async () => {
     setAuthBusy(true);
     setAuthError(null);
+    setVerifyMsg(null);
     try {
       await signInWithGoogle();
     } catch (err) {
       setAuthError(mapAuthError(err));
     } finally {
       setAuthBusy(false);
+    }
+  };
+
+  const handleEmailLogin = async (e: FormEvent) => {
+    e.preventDefault();
+    const trimmedEmail = emailInput.trim();
+    if (!trimmedEmail || !passwordInput) {
+      setAuthError('Bitte E-Mail-Adresse und Passwort eingeben.');
+      return;
+    }
+    setAuthBusy(true);
+    setAuthError(null);
+    setVerifyMsg(null);
+    try {
+      await signInWithEmailPassword(trimmedEmail, passwordInput);
+      setPasswordInput('');
+    } catch (err) {
+      setAuthError(mapAuthError(err));
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleSendVerification = async () => {
+    setVerifyBusy(true);
+    setVerifyMsg(null);
+    try {
+      await sendVerificationEmail();
+      setVerifyMsg({
+        type: 'success',
+        text: `Bestätigungs-E-Mail an ${user?.email ?? 'deine Adresse'} gesendet. Bitte Link öffnen (ggf. Spam-Ordner prüfen) und danach „Status prüfen“ klicken.`,
+      });
+    } catch (err) {
+      setVerifyMsg({
+        type: 'error',
+        text: mapAuthError(err),
+      });
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
+
+  const handleRefreshVerification = async () => {
+    setVerifyBusy(true);
+    setVerifyMsg(null);
+    try {
+      const allowed = await refreshAdminStatus();
+      if (!allowed) {
+        setVerifyMsg({
+          type: 'error',
+          text: 'Die Bestätigung ist noch nicht aktiv. Bitte zuerst den Link in der E-Mail öffnen (ggf. Spam-Ordner prüfen) und anschließend erneut prüfen.',
+        });
+      }
+    } catch (err) {
+      setVerifyMsg({
+        type: 'error',
+        text: mapAuthError(err),
+      });
+    } finally {
+      setVerifyBusy(false);
     }
   };
 
@@ -417,31 +511,89 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
           ) : !user ? (
             <div
               data-testid="admin-login-gate"
-              className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
+              className="sidebar-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto p-6 sm:p-10 text-center"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.12] bg-white/[0.04]">
+              <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-white/[0.12] bg-white/[0.04]">
                 <Lock className="h-6 w-6 text-emerald-400" aria-hidden="true" />
               </div>
-              <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
+              <h3 className="mt-4 font-display text-2xl font-semibold text-[#f7f8f8]">
                 Administrator-Anmeldung erforderlich
               </h3>
-              <p className="mt-2.5 max-w-md text-sm leading-relaxed text-[#9ea4b0]">
-                Melde dich mit dem autorisierten Google-Konto an, um Texte,
-                Prozentwerte, Resilienz-Koordinaten, Achsen, Gräben und
-                Selbsttest-Fragen zentral zu bearbeiten.
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#9ea4b0]">
+                Melde dich mit deinem Admin-Konto an, um Texte, Prozentwerte,
+                Resilienz-Koordinaten, Achsen, Gräben und Selbsttest-Fragen
+                zentral zu bearbeiten.
               </p>
+
+              <form
+                onSubmit={(e) => void handleEmailLogin(e)}
+                data-testid="admin-email-login-form"
+                className="mt-6 w-full max-w-sm space-y-3 rounded-2xl border border-white/[0.1] bg-[#07090d] p-5 text-left"
+              >
+                <div>
+                  <label htmlFor="admin-email-input" className={LABEL_CLASS}>
+                    E-Mail-Adresse
+                  </label>
+                  <input
+                    id="admin-email-input"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="lenny.koellner@gmail.com"
+                    data-testid="admin-email-input"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="admin-password-input" className={LABEL_CLASS}>
+                    Passwort
+                  </label>
+                  <input
+                    id="admin-password-input"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    placeholder="••••••••"
+                    data-testid="admin-password-input"
+                    className={INPUT_CLASS}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={authBusy}
+                  data-testid="admin-email-login-btn"
+                  className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#f7f8f8] px-5 py-2.5 text-sm font-semibold text-[#040406] hover:bg-white disabled:opacity-55 cursor-pointer transition-colors"
+                >
+                  <Mail className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+                  <span>
+                    {authBusy
+                      ? 'Anmeldung läuft…'
+                      : 'Mit E-Mail & Passwort anmelden'}
+                  </span>
+                </button>
+              </form>
+
+              <div className="my-4 flex w-full max-w-sm items-center gap-3">
+                <div className="h-px flex-1 bg-white/[0.1]" />
+                <span className="text-[11px] uppercase tracking-wider text-[#6e7582]">
+                  oder
+                </span>
+                <div className="h-px flex-1 bg-white/[0.1]" />
+              </div>
 
               <button
                 type="button"
                 onClick={() => void handleGoogleLogin()}
                 disabled={authBusy}
                 data-testid="admin-google-login-btn"
-                className="mt-7 inline-flex items-center gap-2.5 rounded-full bg-[#f7f8f8] px-6 py-3 text-sm font-semibold text-[#040406] hover:bg-white disabled:opacity-55 cursor-pointer transition-colors shadow-lg"
+                className="inline-flex w-full max-w-sm items-center justify-center gap-2.5 rounded-full border border-white/[0.14] bg-white/[0.04] px-6 py-2.5 text-sm font-medium text-[#f7f8f8] hover:bg-white/[0.09] disabled:opacity-55 cursor-pointer transition-colors"
               >
-                <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
-                <span>
-                  {authBusy ? 'Anmeldung läuft…' : 'Mit Google anmelden'}
-                </span>
+                <ShieldCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+                <span>Mit Google anmelden</span>
               </button>
 
               {authError && (
@@ -454,63 +606,121 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
               )}
             </div>
           ) : !isAdmin ? (
-            <div
-              data-testid="admin-access-denied"
-              className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
-            >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/35 bg-rose-500/10">
-                <ShieldAlert className="h-6 w-6 text-rose-400" aria-hidden="true" />
-              </div>
-              <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
-                Kein Admin-Zugriff für dieses Konto
-              </h3>
-              <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-[#9ea4b0]">
-                Du bist angemeldet als{' '}
-                <strong className="text-[#f7f8f8]">{user.email}</strong>, dieses
-                Konto ist jedoch nicht als Administrator hinterlegt.
-              </p>
-
-              <div className="mt-5 w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#06070a] p-4 text-left">
-                <div className="text-xs font-medium text-[#8a8f98]">
-                  Deine Firebase User-UID (für /admins/{'{uid}'} im eigenen Projekt):
+            !user.emailVerified && isAuthorizedAdminEmail(user.email) ? (
+              <div
+                data-testid="admin-verify-email-card"
+                className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/35 bg-amber-400/10">
+                  <Mail className="h-6 w-6 text-amber-300" aria-hidden="true" />
                 </div>
-                <div className="mt-1.5 flex items-center justify-between gap-2">
-                  <code className="font-mono-tabular text-xs text-emerald-300 break-all">
-                    {user.uid}
-                  </code>
+                <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
+                  E-Mail-Adresse einmalig bestätigen
+                </h3>
+                <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-[#9ea4b0]">
+                  Dein Konto{' '}
+                  <strong className="text-[#f7f8f8]">{user.email}</strong> ist
+                  als Administrator berechtigt, die E-Mail-Adresse wurde in
+                  Firebase aber noch nicht verifiziert. Aus Sicherheitsgründen
+                  erlauben die Firestore-Regeln Schreibzugriffe erst nach
+                  Bestätigung.
+                </p>
+
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   <button
                     type="button"
-                    onClick={() => void copyText(user.uid, 'uid')}
-                    className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2.5 py-1 text-xs text-[#e2e8f0] hover:bg-white/[0.09] cursor-pointer"
+                    onClick={() => void handleSendVerification()}
+                    disabled={verifyBusy}
+                    data-testid="admin-send-verification-btn"
+                    className="inline-flex items-center gap-2 rounded-full bg-[#f7f8f8] px-5 py-2.5 text-xs font-semibold text-[#040406] hover:bg-white disabled:opacity-55 cursor-pointer"
                   >
-                    {copiedUid ? (
-                      <Check className="h-3.5 w-3.5 text-emerald-400" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
-                    <span>{copiedUid ? 'Kopiert' : 'UID'}</span>
+                    <Mail className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>Bestätigungs-E-Mail senden</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshVerification()}
+                    disabled={verifyBusy}
+                    data-testid="admin-refresh-verification-btn"
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-5 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/20 disabled:opacity-55 cursor-pointer"
+                  >
+                    <RefreshCw
+                      className={`h-3.5 w-3.5 ${verifyBusy ? 'animate-spin' : ''}`}
+                    />
+                    <span>Bereits bestätigt · Status prüfen</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void signOut()}
+                    className="rounded-full border border-white/[0.14] bg-white/[0.04] px-5 py-2.5 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer"
+                  >
+                    Abmelden
+                  </button>
+                </div>
+
+                {verifyMsg && (
+                  <div
+                    className={`mt-5 max-w-md rounded-2xl border px-4 py-3 text-xs font-medium ${
+                      verifyMsg.type === 'success'
+                        ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
+                        : 'border-rose-500/35 bg-rose-500/10 text-rose-200'
+                    }`}
+                  >
+                    {verifyMsg.text}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                data-testid="admin-access-denied"
+                className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/35 bg-rose-500/10">
+                  <ShieldAlert className="h-6 w-6 text-rose-400" aria-hidden="true" />
+                </div>
+                <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
+                  Kein Admin-Zugriff für dieses Konto
+                </h3>
+                <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-[#9ea4b0]">
+                  Du bist angemeldet als{' '}
+                  <strong className="text-[#f7f8f8]">{user.email}</strong>, dieses
+                  Konto ist jedoch nicht als Administrator hinterlegt.
+                </p>
+
+                <div className="mt-5 w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#06070a] p-4 text-left">
+                  <div className="text-xs font-medium text-[#8a8f98]">
+                    Deine Firebase User-UID (für /admins/{'{uid}'} im eigenen Projekt):
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2">
+                    <code className="font-mono-tabular text-xs text-emerald-300 break-all">
+                      {user.uid}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => void copyText(user.uid, 'uid')}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2.5 py-1 text-xs text-[#e2e8f0] hover:bg-white/[0.09] cursor-pointer"
+                    >
+                      {copiedUid ? (
+                        <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      <span>{copiedUid ? 'Kopiert' : 'UID'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void signOut()}
+                    className="rounded-full bg-[#f7f8f8] px-5 py-2.5 text-xs font-semibold text-[#040406] hover:bg-white cursor-pointer"
+                  >
+                    Mit anderem Konto anmelden
                   </button>
                 </div>
               </div>
-
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => void handleGoogleLogin()}
-                  disabled={authBusy}
-                  className="rounded-full bg-[#f7f8f8] px-5 py-2.5 text-xs font-semibold text-[#040406] hover:bg-white cursor-pointer"
-                >
-                  Anderes Google-Konto wählen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void signOut()}
-                  className="rounded-full border border-white/[0.14] bg-white/[0.04] px-5 py-2.5 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer"
-                >
-                  Abmelden
-                </button>
-              </div>
-            </div>
+            )
           ) : (
             /* Authorized Full CMS Editor */
             <div
