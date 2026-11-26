@@ -1,6 +1,8 @@
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Compass,
   GitBranch,
   Layers,
@@ -42,6 +44,24 @@ interface Hero3DStageProps {
   onFullscreenChange: (fullscreen: boolean) => void;
 }
 
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia('(max-width: 639px)').matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return isMobile;
+}
+
 export function Hero3DStage({
   mode,
   onChangeMode,
@@ -60,6 +80,8 @@ export function Hero3DStage({
 }: Hero3DStageProps) {
   const stageBoxRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
+  const isMobile = useIsMobileViewport();
 
   const selected2035: MilieuSpec | null =
     selection?.kind === '2035'
@@ -72,6 +94,13 @@ export function Hero3DStage({
       : null;
 
   const SelectedIcon = selected2035 ? getMilieuIcon(selected2035.id) : Layers;
+
+  // Collapse extra mobile detail drawer when closing selection
+  useEffect(() => {
+    if (!selection) {
+      setMobileDetailsOpen(false);
+    }
+  }, [selection]);
 
   const toggleFullscreen = useCallback(async () => {
     const el = stageBoxRef.current;
@@ -129,6 +158,366 @@ export function Hero3DStage({
     return () => window.clearTimeout(t);
   }, [isFullscreen, onFullscreenChange, onStageResize]);
 
+  const renderInspectorCard = (placement: 'desktop-overlay' | 'mobile-docked' | 'mobile-fullscreen') => {
+    if (!selected2035 && !selected2026) return null;
+
+    const isMobileCompact =
+      placement === 'mobile-docked' || placement === 'mobile-fullscreen';
+    const showFullSections = !isMobileCompact || mobileDetailsOpen;
+
+    const wrapperClass =
+      placement === 'desktop-overlay'
+        ? 'absolute inset-auto top-3 right-3 bottom-3 z-20 flex w-[420px] lg:w-[456px] flex-col overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0e1014]/96 shadow-[0_24px_64px_rgba(0,0,0,0.85)]'
+        : placement === 'mobile-fullscreen'
+          ? `absolute inset-x-3 bottom-3 z-20 flex flex-col overflow-hidden rounded-3xl border border-white/[0.16] bg-[#0e1014]/96 shadow-[0_24px_64px_rgba(0,0,0,0.9)] ${
+              mobileDetailsOpen ? 'max-h-[58dvh]' : ''
+            }`
+          : 'relative mt-3.5 flex w-full flex-col overflow-hidden rounded-3xl border border-white/[0.14] bg-[#0e1014]/96 shadow-[0_20px_52px_rgba(0,0,0,0.75)]';
+
+    return (
+      <motion.aside
+        key={`${placement}-${selected2035 ? selected2035.id : selected2026?.id}`}
+        initial={{
+          opacity: 0,
+          ...(placement === 'desktop-overlay' ? { x: 24 } : { y: 14 }),
+        }}
+        animate={{ opacity: 1, x: 0, y: 0 }}
+        exit={{
+          opacity: 0,
+          ...(placement === 'desktop-overlay' ? { x: 24 } : { y: 12 }),
+        }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        aria-label="Milieu-Steckbrief"
+        data-testid="milieu-steckbrief"
+        className={wrapperClass}
+      >
+        {/* Top colored Linear accent bar */}
+        <div
+          className="h-1 w-full shrink-0"
+          style={{
+            backgroundColor: selected2035
+              ? selected2035.colorHex
+              : selected2026?.colorHex,
+          }}
+        />
+
+        {selected2035 && (
+          <>
+            {/* At-a-Glance Hero Header */}
+            <div className="flex items-start justify-between gap-2.5 border-b border-white/[0.09] px-4 py-3 sm:px-6 sm:py-5">
+              <div className="flex items-start gap-3 min-w-0">
+                <div
+                  className="linear-icon-box flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    borderColor: `${selected2035.colorHex}55`,
+                  }}
+                >
+                  <SelectedIcon
+                    className="h-4 w-4 sm:h-5 sm:w-5"
+                    style={{ color: selected2035.colorHex }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
+                    <span style={{ color: selected2035.colorHex }}>
+                      {selected2035.badge2035}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>SINUS 2035</span>
+                  </div>
+                  <h3 className="mt-0.5 font-display text-base sm:text-[22px] font-semibold leading-snug text-white">
+                    {selected2035.name}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onResetOverview}
+                aria-label="Steckbrief schließen"
+                data-testid="close-steckbrief-btn"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.04] text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer shrink-0 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="sidebar-scroll flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-5 space-y-3 sm:space-y-5">
+              {/* Key Metrics at a Glance */}
+              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/[0.09] bg-white/[0.025] p-3 sm:p-4">
+                <div>
+                  <div className="text-[11px] sm:text-[13px] font-medium text-[#9ea4b0]">
+                    Bevölkerungsanteil
+                  </div>
+                  <div
+                    className="mt-1 font-mono-tabular text-lg sm:text-[26px] font-semibold leading-none"
+                    style={{ color: selected2035.colorHex }}
+                  >
+                    {selected2035.share2035} %
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[11px] sm:text-[13px] font-medium text-[#9ea4b0]">
+                    Resilienz (Z-Achse)
+                  </div>
+                  <div className="mt-1 font-mono-tabular text-lg sm:text-[26px] font-semibold leading-none text-white">
+                    {selected2035.resilienceScore}
+                    <span className="text-xs sm:text-sm font-normal text-[#8a8f98]">
+                      {' '}
+                      / 100
+                    </span>
+                  </div>
+                  <div className="mt-1.5 sm:mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${selected2035.resilienceScore}%`,
+                        backgroundColor: selected2035.colorHex,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Summary Callout ("Auf einen Blick") */}
+              {(!isMobileCompact || placement === 'mobile-docked' || mobileDetailsOpen) && (
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3.5 sm:p-4">
+                  <div
+                    className="text-xs sm:text-[13px] font-semibold"
+                    style={{ color: selected2035.colorHex }}
+                  >
+                    Auf einen Blick
+                  </div>
+                  <p className="mt-1 text-sm sm:text-[15px] leading-relaxed text-[#f1f5f9]">
+                    {selected2035.causalChainSummary}
+                  </p>
+                </div>
+              )}
+
+              {/* Mobile Expand / Collapse Details Button */}
+              {isMobileCompact && (
+                <button
+                  type="button"
+                  onClick={() => setMobileDetailsOpen((prev) => !prev)}
+                  data-testid="toggle-mobile-details-btn"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.1] bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer transition-colors"
+                >
+                  <span>
+                    {mobileDetailsOpen
+                      ? 'Weniger Details anzeigen'
+                      : 'Vollständigen Steckbrief & Kausalkette öffnen'}
+                  </span>
+                  {mobileDetailsOpen ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              )}
+
+              {showFullSections && (
+                <div className="space-y-4 border-t border-white/[0.08] pt-4">
+                  <div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
+                      <Compass
+                        className="h-4 w-4 text-[#9ea4b0]"
+                        aria-hidden="true"
+                      />
+                      <span>Lage &amp; Werteorientierung</span>
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2035.socialLayerLabel}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
+                      <Layers
+                        className="h-4 w-4 text-[#9ea4b0]"
+                        aria-hidden="true"
+                      />
+                      <span>Soziologisches Profil</span>
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2035.detailedProfile}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
+                      <GitBranch
+                        className="h-4 w-4 text-[#9ea4b0]"
+                        aria-hidden="true"
+                      />
+                      <span>Entstehung aus 2026</span>
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2035.originFrom2026}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="text-[13px] font-semibold text-white">
+                      Kausalkette 2035
+                    </div>
+                    <ol className="mt-2 space-y-2.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2035.causalChain.map((step, i) => (
+                        <li key={i} className="flex gap-2.5">
+                          <span
+                            className="font-mono-tabular font-semibold shrink-0"
+                            style={{ color: selected2035.colorHex }}
+                          >
+                            0{i + 1}
+                          </span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
+                      <Swords
+                        className="h-4 w-4 text-[#9ea4b0]"
+                        aria-hidden="true"
+                      />
+                      <span>Gesellschaftliche Konfliktlinie</span>
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2035.conflictLine}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 border-t border-white/[0.08] bg-[#0b0c0f] px-4 py-3 sm:px-6">
+              <button
+                type="button"
+                onClick={() => onStep2035(-1)}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-4 py-2 text-xs sm:text-[13px] font-medium text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white cursor-pointer transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Vorheriges</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onStep2035(1)}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-4 py-2 text-xs sm:text-[13px] font-medium text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white cursor-pointer transition-colors"
+              >
+                <span>Nächstes</span>
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </>
+        )}
+
+        {selected2026 && (
+          <>
+            <div className="flex items-start justify-between gap-3 border-b border-white/[0.09] px-4 py-3.5 sm:px-6 sm:py-5">
+              <div className="flex items-start gap-3 min-w-0">
+                <div
+                  className="linear-icon-box flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl"
+                  style={{
+                    borderColor: `${selected2026.colorHex}55`,
+                  }}
+                >
+                  <Layers
+                    className="h-5 w-5"
+                    style={{ color: selected2026.colorHex }}
+                    aria-hidden="true"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
+                    Klassisches SINUS-Modell 2026 (2D)
+                  </div>
+                  <h3 className="mt-0.5 font-display text-lg sm:text-[22px] font-semibold leading-snug text-white">
+                    {selected2026.name}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onResetOverview}
+                aria-label="Steckbrief schließen"
+                data-testid="close-steckbrief-btn"
+                className="flex h-10 w-10 sm:h-9 sm:w-9 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.04] text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer shrink-0 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="sidebar-scroll flex-1 overflow-y-auto px-4 py-3.5 sm:px-6 sm:py-5 space-y-4 sm:space-y-5">
+              <div className="rounded-2xl border border-white/[0.09] bg-white/[0.025] p-3.5 sm:p-4">
+                <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
+                  Bevölkerungsanteil 2026
+                </div>
+                <div
+                  className="mt-1 font-mono-tabular text-xl sm:text-[26px] font-semibold leading-none"
+                  style={{ color: selected2026.colorHex }}
+                >
+                  {selected2026.share2026} %
+                </div>
+              </div>
+
+              {isMobileCompact && (
+                <button
+                  type="button"
+                  onClick={() => setMobileDetailsOpen((prev) => !prev)}
+                  data-testid="toggle-mobile-details-btn"
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.1] bg-white/[0.03] px-4 py-2.5 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer transition-colors"
+                >
+                  <span>
+                    {mobileDetailsOpen
+                      ? 'Weniger Details anzeigen'
+                      : 'Charakteristik & Entwicklung bis 2035 öffnen'}
+                  </span>
+                  {mobileDetailsOpen ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              )}
+
+              {showFullSections && (
+                <>
+                  <div>
+                    <div className="text-[13px] font-semibold text-white">
+                      Verortung im 2D-Raum
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2026.socialLayer} · {selected2026.valueOrientation}
+                    </p>
+                  </div>
+
+                  <div>
+                    <div className="text-[13px] font-semibold text-white">
+                      Charakteristik 2026
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                      {selected2026.description}
+                    </p>
+                  </div>
+
+                  <div className="border-t border-white/[0.08] pt-4">
+                    <div className="text-[13px] font-semibold text-white">
+                      Entwicklung bis 2035
+                    </div>
+                    <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#f1f5f9]">
+                      {selected2026.evolvesInto}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </motion.aside>
+    );
+  };
+
   return (
     <section
       id="modell-3d"
@@ -169,7 +558,7 @@ export function Hero3DStage({
                 onClick={() => onChangeMode('2026')}
                 data-testid="toggle-mode-2026"
                 aria-pressed={mode === '2026'}
-                className={`relative rounded-full px-3.5 sm:px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap text-center ${
+                className={`relative min-h-[40px] rounded-full px-3.5 sm:px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap text-center ${
                   mode === '2026'
                     ? 'text-[#040406] font-semibold'
                     : 'text-[#9ea4b0] hover:text-[#f7f8f8]'
@@ -192,7 +581,7 @@ export function Hero3DStage({
                 onClick={() => onChangeMode('2035')}
                 data-testid="toggle-mode-2035"
                 aria-pressed={mode === '2035'}
-                className={`relative rounded-full px-3.5 sm:px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap text-center ${
+                className={`relative min-h-[40px] rounded-full px-3.5 sm:px-4 py-2 text-[13px] font-medium transition-colors cursor-pointer whitespace-nowrap text-center ${
                   mode === '2035'
                     ? 'text-[#040406] font-semibold'
                     : 'text-[#9ea4b0] hover:text-[#f7f8f8]'
@@ -223,20 +612,20 @@ export function Hero3DStage({
           data-selected={selection ? `${selection.kind}:${selection.id}` : 'none'}
           className={
             isFullscreen
-              ? 'fixed inset-0 z-50 flex h-screen w-screen flex-col overflow-hidden bg-[#040406]'
-              : 'linear-fade-window relative mt-6 sm:mt-7 flex h-[70vh] min-h-[520px] sm:h-[74vh] sm:min-h-[600px] lg:h-[76vh] max-h-[820px] w-full flex-col overflow-hidden rounded-2xl sm:rounded-3xl'
+              ? 'fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#040406]'
+              : 'linear-fade-window relative mt-5 sm:mt-7 flex h-[50vh] min-h-[370px] max-h-[440px] sm:h-[74vh] sm:min-h-[600px] lg:h-[76vh] sm:max-h-[820px] w-full flex-col overflow-hidden rounded-3xl'
           }
         >
           {/* Dedicated Linear Window Chrome (never overlaps the 3D scene or right drawer) */}
           <div className="shrink-0 border-b border-white/[0.08] bg-[#0b0d11]/95">
             {/* Row 1: Action controls & interaction hint */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 sm:px-5 sm:py-3">
-              <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-5 sm:py-3">
+              <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sidebar-scroll">
                 <button
                   type="button"
                   onClick={onResetOverview}
                   data-testid="reset-camera-btn"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+                  className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3 sm:px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
                 >
                   <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Übersicht</span>
@@ -245,7 +634,7 @@ export function Hero3DStage({
                 <div
                   role="group"
                   aria-label="3D-Ansicht zoomen"
-                  className="inline-flex items-center rounded-full border border-white/[0.12] bg-white/[0.04] p-0.5"
+                  className="inline-flex shrink-0 items-center rounded-full border border-white/[0.12] bg-white/[0.04] p-0.5"
                 >
                   <button
                     type="button"
@@ -253,7 +642,7 @@ export function Hero3DStage({
                     data-testid="zoom-out-btn"
                     aria-label="Herauszoomen"
                     title="Herauszoomen"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+                    className="inline-flex h-7 w-8 sm:w-7 items-center justify-center rounded-full text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
                   >
                     <ZoomOut className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -263,7 +652,7 @@ export function Hero3DStage({
                     data-testid="zoom-in-btn"
                     aria-label="Heranzoomen"
                     title="Heranzoomen"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-full text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+                    className="inline-flex h-7 w-8 sm:w-7 items-center justify-center rounded-full text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
                   >
                     <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
                   </button>
@@ -276,7 +665,7 @@ export function Hero3DStage({
                   aria-label={
                     isFullscreen ? 'Vollbild verlassen' : 'Im Vollbild vergrößern'
                   }
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+                  className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3 sm:px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
                 >
                   {isFullscreen ? (
                     <>
@@ -296,10 +685,11 @@ export function Hero3DStage({
                   onClick={onOpenShare}
                   data-testid="open-share-btn"
                   aria-label="Vorschau-Link teilen"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+                  title="Teilen"
+                  className="inline-flex min-h-[34px] shrink-0 items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-2.5 sm:px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#e2e8f0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
                 >
                   <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Teilen</span>
+                  <span className="hidden sm:inline">Teilen</span>
                 </button>
               </div>
 
@@ -358,7 +748,7 @@ export function Hero3DStage({
                         type="button"
                         onClick={() => onSelectMilieu({ kind: '2035', id: m.id })}
                         data-testid={`legend-btn-${m.id}`}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                        className={`shrink-0 inline-flex min-h-[34px] items-center gap-1.5 rounded-full px-3 py-1.5 sm:min-h-0 sm:px-2.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                           isSelected
                             ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
                             : 'border border-white/[0.08] bg-white/[0.03] text-[#d1d5db] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'
@@ -390,7 +780,7 @@ export function Hero3DStage({
                         key={c.id}
                         type="button"
                         onClick={() => onSelectMilieu({ kind: '2026', id: c.id })}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                        className={`shrink-0 inline-flex min-h-[34px] items-center gap-1.5 rounded-full px-3 py-1.5 sm:min-h-0 sm:px-2.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                           isSelected
                             ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
                             : 'border border-white/[0.08] bg-white/[0.03] text-[#cbd5e1] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'
@@ -419,7 +809,7 @@ export function Hero3DStage({
             {/* Soft Linear bottom dissolve into pure black */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#040406] via-[#040406]/60 to-transparent z-[1]"
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-[#040406] via-[#040406]/55 to-transparent z-[1]"
             />
 
             {/* WebGL Context Lost Fallback */}
@@ -457,7 +847,7 @@ export function Hero3DStage({
               </div>
             </div>
 
-            {/* Fixed, Non-Intrusive Bottom-Left Axis Reference Key */}
+            {/* Fixed, Non-Intrusive Bottom-Left Axis Reference Key (Tablet/Desktop) */}
             <div
               aria-label="Achsenorientierung"
               className="pointer-events-none absolute bottom-3.5 left-3.5 z-10 hidden sm:flex flex-col gap-1.5 rounded-xl border border-white/[0.1] bg-[#0c0e12]/90 px-3.5 py-2.5 shadow-lg"
@@ -478,308 +868,26 @@ export function Hero3DStage({
               )}
             </div>
 
-            {/* Mobile subtle touch hint when no panel is open */}
-            {!selected2035 && !selected2026 && (
-              <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-10 lg:hidden">
-                <span className="rounded-full border border-white/[0.1] bg-[#101216]/90 px-3.5 py-1.5 text-xs text-[#cbd5e1] whitespace-nowrap">
-                  Insel tippen für Steckbrief · Wischen zum Drehen
-                </span>
-              </div>
-            )}
-
-            {/* Right-Side Steckbrief Panel: High-Contrast At-a-Glance Inspector */}
+            {/* Desktop/Tablet Right-Side Steckbrief Drawer & Mobile Fullscreen Compact Sheet */}
             <AnimatePresence>
-              {(selected2035 || selected2026) && (
-                <motion.aside
-                  key={selected2035 ? selected2035.id : selected2026?.id}
-                  initial={{ opacity: 0, x: 24 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 24 }}
-                  transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
-                  aria-label="Milieu-Steckbrief"
-                  data-testid="milieu-steckbrief"
-                  className="absolute inset-x-3 bottom-3 max-h-[66%] sm:inset-auto sm:top-3 sm:right-3 sm:bottom-3 sm:max-h-none z-20 flex sm:w-[420px] lg:w-[456px] flex-col overflow-hidden rounded-2xl border border-white/[0.14] bg-[#0e1014]/96 shadow-[0_24px_64px_rgba(0,0,0,0.85)]"
-                >
-                  {/* Top colored Linear accent bar */}
-                  <div
-                    className="h-1 w-full shrink-0"
-                    style={{
-                      backgroundColor: selected2035
-                        ? selected2035.colorHex
-                        : selected2026?.colorHex,
-                    }}
-                  />
-
-                  {selected2035 && (
-                    <>
-                      {/* At-a-Glance Hero Header */}
-                      <div className="flex items-start justify-between gap-3 border-b border-white/[0.09] px-5 py-4 sm:px-6 sm:py-5">
-                        <div className="flex items-start gap-3.5 min-w-0">
-                          <div
-                            className="linear-icon-box flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                            style={{
-                              borderColor: `${selected2035.colorHex}55`,
-                            }}
-                          >
-                            <SelectedIcon
-                              className="h-5 w-5"
-                              style={{ color: selected2035.colorHex }}
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                              <span style={{ color: selected2035.colorHex }}>
-                                {selected2035.badge2035}
-                              </span>
-                              <span aria-hidden="true">·</span>
-                              <span>SINUS 2035</span>
-                            </div>
-                            <h3 className="mt-1 font-display text-xl sm:text-[22px] font-semibold leading-snug text-white">
-                              {selected2035.name}
-                            </h3>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={onResetOverview}
-                          aria-label="Steckbrief schließen"
-                          data-testid="close-steckbrief-btn"
-                          className="rounded-full border border-white/[0.12] bg-white/[0.04] p-2 text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer shrink-0 transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="sidebar-scroll flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 space-y-5">
-                        {/* Key Metrics at a Glance */}
-                        <div className="grid grid-cols-2 gap-3 rounded-xl border border-white/[0.09] bg-white/[0.025] p-4">
-                          <div>
-                            <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                              Bevölkerungsanteil
-                            </div>
-                            <div
-                              className="mt-1 font-mono-tabular text-2xl sm:text-[26px] font-semibold leading-none"
-                              style={{ color: selected2035.colorHex }}
-                            >
-                              {selected2035.share2035} %
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                              Resilienz (Z-Achse)
-                            </div>
-                            <div className="mt-1 font-mono-tabular text-2xl sm:text-[26px] font-semibold leading-none text-white">
-                              {selected2035.resilienceScore}
-                              <span className="text-sm font-normal text-[#8a8f98]">
-                                {' '}
-                                / 100
-                              </span>
-                            </div>
-                            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
-                              <div
-                                className="h-full rounded-full transition-all duration-300"
-                                style={{
-                                  width: `${selected2035.resilienceScore}%`,
-                                  backgroundColor: selected2035.colorHex,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Quick Summary Callout ("Auf einen Blick") */}
-                        <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
-                          <div
-                            className="text-[13px] font-semibold"
-                            style={{ color: selected2035.colorHex }}
-                          >
-                            Auf einen Blick
-                          </div>
-                          <p className="mt-1.5 text-[15px] leading-relaxed text-[#f1f5f9]">
-                            {selected2035.causalChainSummary}
-                          </p>
-                        </div>
-
-                        <div className="space-y-4 border-t border-white/[0.08] pt-4">
-                          <div>
-                            <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-                              <Compass
-                                className="h-4 w-4 text-[#9ea4b0]"
-                                aria-hidden="true"
-                              />
-                              <span>Lage &amp; Werteorientierung</span>
-                            </div>
-                            <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {selected2035.socialLayerLabel}
-                            </p>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-                              <Layers
-                                className="h-4 w-4 text-[#9ea4b0]"
-                                aria-hidden="true"
-                              />
-                              <span>Soziologisches Profil</span>
-                            </div>
-                            <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {selected2035.detailedProfile}
-                            </p>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-                              <GitBranch
-                                className="h-4 w-4 text-[#9ea4b0]"
-                                aria-hidden="true"
-                              />
-                              <span>Entstehung aus 2026</span>
-                            </div>
-                            <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {selected2035.originFrom2026}
-                            </p>
-                          </div>
-
-                          <div>
-                            <div className="text-[13px] font-semibold text-white">
-                              Kausalkette 2035
-                            </div>
-                            <ol className="mt-2 space-y-2.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {selected2035.causalChain.map((step, i) => (
-                                <li key={i} className="flex gap-2.5">
-                                  <span
-                                    className="font-mono-tabular font-semibold shrink-0"
-                                    style={{ color: selected2035.colorHex }}
-                                  >
-                                    0{i + 1}
-                                  </span>
-                                  <span>{step}</span>
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-
-                          <div>
-                            <div className="flex items-center gap-2 text-[13px] font-semibold text-white">
-                              <Swords
-                                className="h-4 w-4 text-[#9ea4b0]"
-                                aria-hidden="true"
-                              />
-                              <span>Gesellschaftliche Konfliktlinie</span>
-                            </div>
-                            <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {selected2035.conflictLine}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between border-t border-white/[0.08] bg-[#0b0c0f] px-5 py-3 sm:px-6">
-                        <button
-                          type="button"
-                          onClick={() => onStep2035(-1)}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white cursor-pointer transition-colors"
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          <span>Vorheriges</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onStep2035(1)}
-                          className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-3.5 py-1.5 text-xs sm:text-[13px] font-medium text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white cursor-pointer transition-colors"
-                        >
-                          <span>Nächstes</span>
-                          <ChevronRight className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </>
-                  )}
-
-                  {selected2026 && (
-                    <>
-                      <div className="flex items-start justify-between gap-3 border-b border-white/[0.09] px-5 py-4 sm:px-6 sm:py-5">
-                        <div className="flex items-start gap-3.5 min-w-0">
-                          <div
-                            className="linear-icon-box flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
-                            style={{
-                              borderColor: `${selected2026.colorHex}55`,
-                            }}
-                          >
-                            <Layers
-                              className="h-5 w-5"
-                              style={{ color: selected2026.colorHex }}
-                              aria-hidden="true"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                              Klassisches SINUS-Modell 2026 (2D)
-                            </div>
-                            <h3 className="mt-1 font-display text-xl sm:text-[22px] font-semibold leading-snug text-white">
-                              {selected2026.name}
-                            </h3>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={onResetOverview}
-                          aria-label="Steckbrief schließen"
-                          data-testid="close-steckbrief-btn"
-                          className="rounded-full border border-white/[0.12] bg-white/[0.04] p-2 text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer shrink-0 transition-colors"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      <div className="sidebar-scroll flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5 space-y-5">
-                        <div className="rounded-xl border border-white/[0.09] bg-white/[0.025] p-4">
-                          <div className="text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                            Bevölkerungsanteil 2026
-                          </div>
-                          <div
-                            className="mt-1 font-mono-tabular text-2xl sm:text-[26px] font-semibold leading-none"
-                            style={{ color: selected2026.colorHex }}
-                          >
-                            {selected2026.share2026} %
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[13px] font-semibold text-white">
-                            Verortung im 2D-Raum
-                          </div>
-                          <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                            {selected2026.socialLayer} ·{' '}
-                            {selected2026.valueOrientation}
-                          </p>
-                        </div>
-
-                        <div>
-                          <div className="text-[13px] font-semibold text-white">
-                            Charakteristik 2026
-                          </div>
-                          <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                            {selected2026.description}
-                          </p>
-                        </div>
-
-                        <div className="border-t border-white/[0.08] pt-4">
-                          <div className="text-[13px] font-semibold text-white">
-                            Entwicklung bis 2035
-                          </div>
-                          <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#f1f5f9]">
-                            {selected2026.evolvesInto}
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </motion.aside>
-              )}
+              {!isMobile && renderInspectorCard('desktop-overlay')}
+              {isMobile && isFullscreen && renderInspectorCard('mobile-fullscreen')}
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Mobile Clean Touch Cue + Axis Strip Directly Below the 3D Window (never covers the canvas) */}
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#8a8f98] sm:hidden">
+          <span>Wischen zum Drehen · 2 Finger zum Zoomen · Insel tippen</span>
+          <span className="font-mono-tabular text-[11px] text-[#9ea4b0]">
+            X Werte · Y Schicht{mode === '2035' ? ' · Z Resilienz' : ''}
+          </span>
+        </div>
+
+        {/* Mobile Docked Steckbrief Card Directly Underneath the 3D Window (keeps 3D model 100% unobstructed) */}
+        <AnimatePresence>
+          {isMobile && !isFullscreen && renderInspectorCard('mobile-docked')}
+        </AnimatePresence>
       </div>
     </section>
   );

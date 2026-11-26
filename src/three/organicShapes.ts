@@ -282,11 +282,11 @@ export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
 
 
 
-  // 7. Simplified invisible raycast hit proxy enveloping the floating island
+  // 7. Simplified invisible raycast hit proxy enveloping the floating island (generous for mobile touch)
   const hitGeo = new THREE.CylinderGeometry(
-    spec.footprintRadius * 1.1,
-    spec.footprintRadius * 1.1,
-    0.78,
+    spec.footprintRadius * 1.18,
+    spec.footprintRadius * 1.18,
+    0.96,
     18,
   );
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
@@ -372,11 +372,11 @@ export function buildClassic2026Rig(
   const outline = new THREE.Line(outlineGeo, edgeMat);
   rootGroup.add(outline);
 
-  // Invisible raycast proxy on layer 1
+  // Invisible raycast proxy on layer 1 (generous height for mobile touch)
   const hitGeo = new THREE.CylinderGeometry(
-    Math.max(spec.radiusX, spec.radiusZ) * 0.92,
-    Math.max(spec.radiusX, spec.radiusZ) * 0.92,
-    0.25,
+    Math.max(spec.radiusX, spec.radiusZ) * 0.98,
+    Math.max(spec.radiusX, spec.radiusZ) * 0.98,
+    0.42,
     14,
   );
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });

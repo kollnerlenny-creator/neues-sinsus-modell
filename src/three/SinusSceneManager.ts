@@ -165,6 +165,7 @@ export class SinusSceneManager {
   private isTicking = false;
   private needsSceneStep = true;
   private isPointerDown = false;
+  private wasMultiTouch = false;
   private lastHoverRaycast = 0;
   private lastZoomScale = 1.0;
 
@@ -551,6 +552,11 @@ export class SinusSceneManager {
   }
 
   private onTouchStart = (e: TouchEvent): void => {
+    if (e.touches.length >= 2) {
+      this.wasMultiTouch = true;
+    } else if (e.touches.length === 1) {
+      this.wasMultiTouch = false;
+    }
     this.controls.enableZoom = this.fullscreenZoom || e.touches.length >= 2;
   };
 
@@ -617,11 +623,16 @@ export class SinusSceneManager {
     this.isPointerDown = false;
     this.renderer.domElement.style.cursor = this.hovered ? 'pointer' : 'grab';
     this.container.removeAttribute('data-canvas-grabbing');
+    if (this.wasMultiTouch && e.pointerType === 'touch') {
+      this.wasMultiTouch = false;
+      return;
+    }
+    const maxTapDist = e.pointerType === 'touch' ? 14 : 8;
     const dist = Math.hypot(
       e.clientX - this.pointerDownPos.x,
       e.clientY - this.pointerDownPos.y,
     );
-    if (dist > 8) return;
+    if (dist > maxTapDist) return;
 
     this.updatePointerNdc(e);
     this.raycaster.setFromCamera(this.pointer, this.camera);
@@ -801,7 +812,7 @@ export class SinusSceneManager {
       const height = Math.max(this.container.clientHeight, 240);
       const { isMobile } = this.getViewportCameraMetrics(width, height);
       const shiftX = width > 900 ? 2.4 : 0;
-      const shiftYMobile = isMobile ? -0.95 : 0;
+      const shiftYMobile = isMobile ? (this.fullscreenZoom ? -0.35 : 0.05) : 0;
 
       if (selection.kind === '2035') {
         const rig = this.islandRigs.get(selection.id as MilieuId);
@@ -809,14 +820,14 @@ export class SinusSceneManager {
           const snap = interpolateMilieuFrame(rig.spec, this.targetProgress);
           _camTargetTarget.set(
             snap.x + shiftX,
-            snap.elevation * 0.72 + shiftYMobile,
+            snap.elevation * 0.68 + shiftYMobile,
             snap.z,
           );
-          const offX = isMobile ? 2.6 : snap.x >= 0 ? 4.8 : -4.2;
+          const offX = isMobile ? 2.0 : snap.x >= 0 ? 4.8 : -4.2;
           _camPosTarget.set(
             snap.x + shiftX + offX,
-            Math.max(5.5, snap.elevation + (isMobile ? 5.2 : 3.8)),
-            snap.z + (isMobile ? 11.4 : 9.4),
+            Math.max(5.2, snap.elevation + (isMobile ? 4.6 : 3.8)),
+            snap.z + (isMobile ? 10.6 : 9.4),
           );
           this.isCameraTweening = true;
         }
@@ -826,13 +837,13 @@ export class SinusSceneManager {
           const shift2026 = width > 900 ? 2.0 : 0;
           _camTargetTarget.set(
             rig.spec.pos.x + shift2026,
-            0.25 + (isMobile ? -0.7 : 0),
+            0.2 + (isMobile && this.fullscreenZoom ? -0.3 : 0),
             rig.spec.pos.z,
           );
           _camPosTarget.set(
-            rig.spec.pos.x + shift2026 + (isMobile ? 1.4 : 2.4),
-            isMobile ? 11.5 : 9.8,
-            rig.spec.pos.z + (isMobile ? 11.5 : 9.4),
+            rig.spec.pos.x + shift2026 + (isMobile ? 1.2 : 2.4),
+            isMobile ? 10.8 : 9.8,
+            rig.spec.pos.z + (isMobile ? 10.6 : 9.4),
           );
           this.isCameraTweening = true;
         }
