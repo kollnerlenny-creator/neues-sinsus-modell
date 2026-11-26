@@ -541,7 +541,7 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
                     required
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="lenny.koellner@gmail.com"
+                    placeholder="name@beispiel.de"
                     data-testid="admin-email-input"
                     className={INPUT_CLASS}
                   />
