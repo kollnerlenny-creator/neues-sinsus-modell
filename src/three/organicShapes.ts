@@ -15,6 +15,8 @@ export interface FloatingIslandRig {
   edgeMaterials: THREE.LineBasicMaterial[];
   anchorMat: THREE.MeshLambertMaterial;
   shadowMat: THREE.MeshBasicMaterial;
+  labelSprite: THREE.Sprite;
+  labelMat: THREE.SpriteMaterial;
   currentX: number;
   currentZ: number;
   currentElevation: number;
@@ -30,6 +32,8 @@ export interface Classic2026Rig {
   hitMesh: THREE.Mesh;
   fillMat: THREE.MeshLambertMaterial;
   edgeMat: THREE.LineBasicMaterial;
+  labelSprite: THREE.Sprite;
+  labelMat: THREE.SpriteMaterial;
   isHovered: boolean;
   isSelected: boolean;
 }
@@ -112,8 +116,6 @@ function getShapesForVariant(variant: ShapeVariant, radius: number): THREE.Shape
   }
 }
 
-
-
 let sharedLightShadowTex: THREE.CanvasTexture | null = null;
 function getSoftGroundShadowTexture(): THREE.CanvasTexture {
   if (sharedLightShadowTex) return sharedLightShadowTex;
@@ -143,11 +145,66 @@ function getSoftGroundShadowTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+function createIslandBadgeTexture(
+  title: string,
+  subtitle: string | undefined,
+  accentHex: string,
+  maxAnisotropy: number,
+): { texture: THREE.CanvasTexture; aspect: number } {
+  const logicalWidth = 460;
+  const logicalHeight = subtitle ? 112 : 78;
+  const dpr = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = logicalWidth * dpr;
+  canvas.height = logicalHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+
+    ctx.fillStyle = 'rgba(10, 12, 16, 0.94)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.roundRect(6, 6, logicalWidth - 12, logicalHeight - 12, 20);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = accentHex;
+    ctx.beginPath();
+    ctx.roundRect(24, 14, logicalWidth - 48, 4.5, 2.5);
+    ctx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = '700 32px "Plus Jakarta Sans", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(title, logicalWidth / 2, subtitle ? 47 : logicalHeight / 2 + 2);
+
+    if (subtitle) {
+      ctx.fillStyle = accentHex;
+      ctx.font = '600 23px "JetBrains Mono", "Plus Jakarta Sans", monospace';
+      ctx.fillText(subtitle, logicalWidth / 2, 83);
+    }
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = maxAnisotropy;
+  texture.needsUpdate = true;
+  return { texture, aspect: logicalWidth / logicalHeight };
+}
+
 /**
- * Builds a floating translucent 3D organic island for the 2035 state,
- * with crisp typography printed directly on top of the bubble and a vertical plumb line.
+ * Builds a floating translucent 3D organic disc/slab island for the 2035 state,
+ * with beveled translucent geometry, vertical plumb line, and sharp HiDPI floating label.
  */
-export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
+export function buildFloatingIslandRig(
+  spec: MilieuSpec,
+  maxAnisotropy = 4,
+): FloatingIslandRig {
   const rootGroup = new THREE.Group();
   rootGroup.name = `island_${spec.id}`;
   rootGroup.position.set(spec.pos2035.x, 0, spec.pos2035.z);
@@ -280,18 +337,34 @@ export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
     islandGroup.add(edgeLines);
   }
 
+  // 6. Sharp 2x HiDPI floating 3D title placard directly above the slab
+  const { texture: badgeTex, aspect: badgeAspect } = createIslandBadgeTexture(
+    spec.shortName,
+    `${spec.share2035} % · Resilienz ${spec.resilienceScore}`,
+    spec.colorHex,
+    maxAnisotropy,
+  );
+  const labelMat = new THREE.SpriteMaterial({
+    map: badgeTex,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: false,
+  });
+  const labelSprite = new THREE.Sprite(labelMat);
+  labelSprite.position.set(0, spec.elevation2035 + 0.85, 0);
+  labelSprite.scale.set(3.2, 3.2 / badgeAspect, 1);
+  rootGroup.add(labelSprite);
 
-
-  // 7. Simplified invisible raycast hit proxy enveloping the floating island (generous for mobile touch)
+  // 7. Simplified invisible raycast hit proxy enveloping the floating island (generous for smartphone touch)
   const hitGeo = new THREE.CylinderGeometry(
-    spec.footprintRadius * 1.18,
-    spec.footprintRadius * 1.18,
-    0.96,
+    spec.footprintRadius * 1.28,
+    spec.footprintRadius * 1.28,
+    1.15,
     18,
   );
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);
-  hitMesh.position.y = 0.08;
+  hitMesh.position.y = 0.16;
   hitMesh.userData.milieuId = spec.id;
   hitMesh.userData.kind = '2035';
   hitMesh.layers.set(1);
@@ -311,6 +384,8 @@ export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
     edgeMaterials,
     anchorMat,
     shadowMat,
+    labelSprite,
+    labelMat,
     currentX: spec.pos2035.x,
     currentZ: spec.pos2035.z,
     currentElevation: spec.elevation2035,
@@ -323,10 +398,11 @@ export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
 
 /**
  * Builds one of the 10 classic overlapping 2D SINUS ellipses for the 2026 floor view,
- * with crisp typography printed directly onto the ellipse surface.
+ * with crisp HiDPI title badge floating just above the ellipse.
  */
 export function buildClassic2026Rig(
   spec: ClassicMilieu2026Spec,
+  maxAnisotropy = 4,
 ): Classic2026Rig {
   const rootGroup = new THREE.Group();
   rootGroup.name = `classic2026_${spec.id}`;
@@ -372,11 +448,29 @@ export function buildClassic2026Rig(
   const outline = new THREE.Line(outlineGeo, edgeMat);
   rootGroup.add(outline);
 
+  // Sharp 2x HiDPI title placard above the 2026 ellipse
+  const { texture: cBadgeTex, aspect: cBadgeAspect } = createIslandBadgeTexture(
+    spec.shortName,
+    undefined,
+    spec.colorHex,
+    maxAnisotropy,
+  );
+  const labelMat = new THREE.SpriteMaterial({
+    map: cBadgeTex,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false,
+  });
+  const labelSprite = new THREE.Sprite(labelMat);
+  labelSprite.position.set(0, 0.34, 0);
+  labelSprite.scale.set(2.15, 2.15 / cBadgeAspect, 1);
+  rootGroup.add(labelSprite);
+
   // Invisible raycast proxy on layer 1 (generous height for mobile touch)
   const hitGeo = new THREE.CylinderGeometry(
-    Math.max(spec.radiusX, spec.radiusZ) * 0.98,
-    Math.max(spec.radiusX, spec.radiusZ) * 0.98,
-    0.42,
+    Math.max(spec.radiusX, spec.radiusZ) * 1.05,
+    Math.max(spec.radiusX, spec.radiusZ) * 1.05,
+    0.58,
     14,
   );
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
@@ -386,7 +480,7 @@ export function buildClassic2026Rig(
     1,
     spec.radiusZ / Math.max(spec.radiusX, spec.radiusZ),
   );
-  hitMesh.position.y = 0.05;
+  hitMesh.position.y = 0.08;
   hitMesh.userData.classicId = spec.id;
   hitMesh.userData.kind = '2026';
   hitMesh.layers.set(1);
@@ -398,6 +492,8 @@ export function buildClassic2026Rig(
     hitMesh,
     fillMat,
     edgeMat,
+    labelSprite,
+    labelMat,
     isHovered: false,
     isSelected: false,
   };

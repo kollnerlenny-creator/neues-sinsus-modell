@@ -472,7 +472,7 @@ export function SelfTestSection({
                       „{currentQuestion.text}“
                     </h3>
 
-                    <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-5">
+                    <div className="mt-7 flex flex-col-reverse gap-2.5 sm:grid sm:grid-cols-5 sm:gap-3">
                       {SELF_TEST_SCALE_OPTIONS.map((opt) => {
                         const selected = currentAnswer === opt.value;
                         return (

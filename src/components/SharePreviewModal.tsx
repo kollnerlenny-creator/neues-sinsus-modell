@@ -156,6 +156,11 @@ export function SharePreviewModal({
                 <img
                   src={sharePreviewImg}
                   alt="Vorschaubild: Schwebendes 3D-SINUS-Modell Deutschland 2035"
+                  onError={(e) => {
+                    if (!e.currentTarget.src.endsWith('/og-preview.jpg')) {
+                      e.currentTarget.src = '/og-preview.jpg';
+                    }
+                  }}
                   className="h-full w-full object-cover"
                 />
               </div>

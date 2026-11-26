@@ -204,10 +204,10 @@ export function Hero3DStage({
         {selected2035 && (
           <>
             {/* At-a-Glance Hero Header */}
-            <div className="flex items-start justify-between gap-2.5 border-b border-white/[0.09] px-4 py-3 sm:px-6 sm:py-5">
-              <div className="flex items-start gap-3 min-w-0">
+            <div className="flex items-start justify-between gap-2.5 border-b border-white/[0.09] px-4 py-2.5 sm:px-6 sm:py-5">
+              <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
                 <div
-                  className="linear-icon-box flex h-9 w-9 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl"
+                  className="linear-icon-box flex h-8 w-8 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-xl"
                   style={{
                     borderColor: `${selected2035.colorHex}55`,
                   }}
@@ -219,7 +219,7 @@ export function Hero3DStage({
                   />
                 </div>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-[13px] font-medium text-[#9ea4b0]">
                     <span style={{ color: selected2035.colorHex }}>
                       {selected2035.badge2035}
                     </span>
@@ -242,9 +242,9 @@ export function Hero3DStage({
               </button>
             </div>
 
-            <div className="sidebar-scroll flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-5 space-y-3 sm:space-y-5">
+            <div className="sidebar-scroll flex-1 overflow-y-auto px-4 py-2.5 sm:px-6 sm:py-5 space-y-2.5 sm:space-y-5">
               {/* Key Metrics at a Glance */}
-              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/[0.09] bg-white/[0.025] p-3 sm:p-4">
+              <div className="grid grid-cols-2 gap-3 rounded-2xl border border-white/[0.09] bg-white/[0.025] p-2.5 sm:p-4">
                 <div>
                   <div className="text-[11px] sm:text-[13px] font-medium text-[#9ea4b0]">
                     Bevölkerungsanteil
@@ -523,7 +523,7 @@ export function Hero3DStage({
       id="modell-3d"
       className="section-anchor relative border-t border-white/[0.06] pb-16 pt-10 sm:pb-22 sm:pt-14"
     >
-      <div className="mx-auto max-w-[1360px] px-3.5 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1360px] px-4 sm:px-6 lg:px-8">
         {/* Linear-style Asymmetric Split Editorial Header */}
         <motion.div
           initial={{ opacity: 0, y: 14 }}
@@ -613,7 +613,7 @@ export function Hero3DStage({
           className={
             isFullscreen
               ? 'fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col overflow-hidden bg-[#040406]'
-              : 'linear-fade-window relative mt-5 sm:mt-7 flex h-[50vh] min-h-[370px] max-h-[440px] sm:h-[74vh] sm:min-h-[600px] lg:h-[76vh] sm:max-h-[820px] w-full flex-col overflow-hidden rounded-3xl'
+              : 'linear-fade-window relative mt-5 sm:mt-7 flex h-[56vh] min-h-[410px] max-h-[500px] sm:h-[74vh] sm:min-h-[600px] lg:h-[76vh] sm:max-h-[820px] w-full flex-col overflow-hidden rounded-3xl'
           }
         >
           {/* Dedicated Linear Window Chrome (never overlaps the 3D scene or right drawer) */}
@@ -729,72 +729,6 @@ export function Hero3DStage({
               </div>
             </div>
 
-            {/* Row 2: Milieu Direct-Selection & Legend Strip */}
-            <div
-              aria-label="Milieu-Legende & Direktwahl"
-              className="sidebar-scroll flex flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible items-center gap-1.5 border-t border-white/[0.06] bg-[#0a0c0f]/80 px-3.5 py-2 sm:px-5"
-            >
-              <span className="shrink-0 text-xs font-medium text-[#8a8f98] mr-0.5 whitespace-nowrap">
-                {mode === '2035' ? 'Milieus:' : 'Milieus 2026:'}
-              </span>
-              {mode === '2035'
-                ? MILIEUS.map((m) => {
-                    const isSelected =
-                      selection?.kind === '2035' && selection.id === m.id;
-                    const Icon = getMilieuIcon(m.id);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        onClick={() => onSelectMilieu({ kind: '2035', id: m.id })}
-                        data-testid={`legend-btn-${m.id}`}
-                        className={`shrink-0 inline-flex min-h-[34px] items-center gap-1.5 rounded-full px-3 py-1.5 sm:min-h-0 sm:px-2.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-                          isSelected
-                            ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
-                            : 'border border-white/[0.08] bg-white/[0.03] text-[#d1d5db] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'
-                        }`}
-                      >
-                        <Icon
-                          className="h-3.5 w-3.5 shrink-0"
-                          style={{
-                            color: isSelected ? '#08090a' : m.colorHex,
-                          }}
-                          aria-hidden="true"
-                        />
-                        <span>{m.shortName}</span>
-                        <span
-                          className={`font-mono-tabular text-[11px] ${
-                            isSelected ? 'text-[#475569]' : 'text-[#8a8f98]'
-                          }`}
-                        >
-                          {m.share2035}%
-                        </span>
-                      </button>
-                    );
-                  })
-                : CLASSIC_MILIEUS_2026.map((c) => {
-                    const isSelected =
-                      selection?.kind === '2026' && selection.id === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => onSelectMilieu({ kind: '2026', id: c.id })}
-                        className={`shrink-0 inline-flex min-h-[34px] items-center gap-1.5 rounded-full px-3 py-1.5 sm:min-h-0 sm:px-2.5 sm:py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-                          isSelected
-                            ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
-                            : 'border border-white/[0.08] bg-white/[0.03] text-[#cbd5e1] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'
-                        }`}
-                      >
-                        <span
-                          className="h-2 w-2 rounded-full shrink-0"
-                          style={{ backgroundColor: c.colorHex }}
-                        />
-                        <span>{c.shortName}</span>
-                      </button>
-                    );
-                  })}
-            </div>
           </div>
 
           {/* Interactive 3D Viewport Canvas Area */}
@@ -876,12 +810,40 @@ export function Hero3DStage({
           </div>
         </div>
 
-        {/* Mobile Clean Touch Cue + Axis Strip Directly Below the 3D Window (never covers the canvas) */}
-        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#8a8f98] sm:hidden">
-          <span>Wischen zum Drehen · 2 Finger zum Zoomen · Insel tippen</span>
-          <span className="font-mono-tabular text-[11px] text-[#9ea4b0]">
-            X Werte · Y Schicht{mode === '2035' ? ' · Z Resilienz' : ''}
-          </span>
+        {/* Mobile Clean Touch Cue + Quick Tour Directly Below the 3D Window (never covers the canvas) */}
+        <div className="mt-3 flex flex-col gap-2.5 px-0.5 sm:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#8a8f98]">
+            <span>Wischen = Drehen · 2 Finger = Zoom · Insel tippen</span>
+            <span className="font-mono-tabular text-[11px] text-[#9ea4b0]">
+              X Werte · Y Schicht{mode === '2035' ? ' · Z Resilienz' : ''}
+            </span>
+          </div>
+
+          {!selection && mode === '2035' && (
+            <div className="flex items-center justify-between gap-2 rounded-2xl border border-white/[0.1] bg-[#0c0e13]/90 p-2">
+              <button
+                type="button"
+                onClick={() => onStep2035(-1)}
+                data-testid="mobile-tour-prev-btn"
+                className="inline-flex min-h-[40px] items-center gap-1 rounded-xl border border-white/[0.1] bg-white/[0.04] px-3 py-2 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                <span>Zurück</span>
+              </button>
+              <span className="text-xs font-medium text-[#cbd5e1] text-center">
+                3D-Rundgang durch alle 6 Milieus
+              </span>
+              <button
+                type="button"
+                onClick={() => onStep2035(1)}
+                data-testid="mobile-tour-next-btn"
+                className="inline-flex min-h-[40px] items-center gap-1 rounded-xl bg-[#f7f8f8] px-3.5 py-2 text-xs font-semibold text-[#08090a] hover:bg-white cursor-pointer"
+              >
+                <span>Starten</span>
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Mobile Docked Steckbrief Card Directly Underneath the 3D Window (keeps 3D model 100% unobstructed) */}

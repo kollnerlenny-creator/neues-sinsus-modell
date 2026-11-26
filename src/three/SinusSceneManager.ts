@@ -66,14 +66,17 @@ function createAxisSpriteTexture(
   title: string,
   subtitle: string | undefined,
   accentColor: string,
+  maxAnisotropy = 4,
 ): { texture: THREE.CanvasTexture; aspect: number } {
   const canvas = document.createElement('canvas');
+  const dpr = 2;
   const width = 560;
   const height = subtitle ? 148 : 92;
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
   const ctx = canvas.getContext('2d');
   if (ctx) {
+    ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
 
     ctx.fillStyle = 'rgba(10, 12, 16, 0.94)';
@@ -104,6 +107,10 @@ function createAxisSpriteTexture(
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = maxAnisotropy;
   texture.needsUpdate = true;
   return { texture, aspect: width / height };
 }
@@ -166,6 +173,7 @@ export class SinusSceneManager {
   private needsSceneStep = true;
   private isPointerDown = false;
   private wasMultiTouch = false;
+  private activeTouchPointers = new Set<number>();
   private lastHoverRaycast = 0;
   private lastZoomScale = 1.0;
 
@@ -223,14 +231,21 @@ export class SinusSceneManager {
     this.scene.environment = this.envTexture;
     pmrem.dispose();
 
-    // 5. OrbitControls (fluid inertia on laptops & responsive on touch/whiteboards)
+    // 5. OrbitControls (fluid inertia on laptops & centered pinch-zoom on smartphones)
+    const isCoarseTouch = this.isCoarseInput();
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.copy(DEFAULT_CAMERA_TARGET);
     this.controls.enableZoom = false;
+    this.controls.enablePan = !isCoarseTouch;
+    this.controls.touches = {
+      ONE: THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_ROTATE,
+    };
     this.controls.enableDamping = !this.isSoftwareGl;
     this.controls.dampingFactor = 0.075;
-    this.controls.rotateSpeed = 0.9;
-    this.controls.minDistance = 8.5;
+    this.controls.rotateSpeed = isCoarseTouch ? 1.25 : 0.9;
+    this.controls.zoomSpeed = isCoarseTouch ? 1.15 : 1.0;
+    this.controls.minDistance = 6.2;
     this.controls.maxDistance = 70;
     this.controls.minPolarAngle = 0.16;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.06;
@@ -251,20 +266,20 @@ export class SinusSceneManager {
     // 7. Floor Plate, Fine Grid, Axis Beams & Engraved 3D Axis Plaques
     this.setupCoordinateFloorAndAxes(maxAnisotropy);
 
-    // 8. 6 Floating 2035 Islands (with on-bubble labels)
+    // 8. 6 Floating 2035 Islands (with on-disc labels)
     for (const spec of MILIEUS) {
-      const rig = buildFloatingIslandRig(spec);
+      const rig = buildFloatingIslandRig(spec, maxAnisotropy);
       this.scene.add(rig.rootGroup);
       this.islandRigs.set(spec.id, rig);
       this.interactables2035.push(rig.hitMesh);
     }
 
-    // 9. 10 Classic Overlapping 2026 SINUS Ellipses (with on-bubble labels)
+    // 9. 10 Classic Overlapping 2026 SINUS Ellipses (with on-disc labels)
     this.classicGroup = new THREE.Group();
     this.classicGroup.visible = false;
     this.scene.add(this.classicGroup);
     for (const spec of CLASSIC_MILIEUS_2026) {
-      const rig = buildClassic2026Rig(spec);
+      const rig = buildClassic2026Rig(spec, maxAnisotropy);
       this.classicGroup.add(rig.rootGroup);
       this.classicRigs.set(spec.id, rig);
       this.interactables2026.push(rig.hitMesh);
@@ -309,22 +324,27 @@ export class SinusSceneManager {
     this.scheduleRender();
   }
 
+  private isCoarseInput(): boolean {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return (
+      Boolean(window.matchMedia('(pointer: coarse)').matches) ||
+      (Boolean(window.matchMedia('(any-pointer: coarse)').matches) &&
+        window.innerWidth < 1024)
+    );
+  }
+
   private computeTargetPixelRatio(width: number, height: number): number {
     if (this.isSoftwareGl) return 1;
-    const hasCoarsePrimary =
-      typeof window !== 'undefined' &&
-      Boolean(window.matchMedia?.('(pointer: coarse)').matches);
     const area = Math.max(1, width * height);
     const isLargeTouchBoard =
       typeof window !== 'undefined' &&
       Boolean(window.matchMedia?.('(any-pointer: coarse)').matches) &&
       area >= 1_150_000;
-    const isLowPowerTouch = hasCoarsePrimary || isLargeTouchBoard;
 
-    const maxPixels = isLowPowerTouch ? 720_000 : 1_850_000;
-    const maxDpr = isLowPowerTouch ? 1.0 : 1.5;
+    const maxPixels = isLargeTouchBoard ? 1_400_000 : 2_600_000;
+    const maxDpr = isLargeTouchBoard ? 1.25 : 2.0;
     const areaCapDpr = Math.sqrt(maxPixels / area);
-    return Math.max(0.75, Math.min(window.devicePixelRatio || 1, maxDpr, areaCapDpr));
+    return Math.max(1.0, Math.min(window.devicePixelRatio || 1, maxDpr, areaCapDpr));
   }
 
   private setupLighting(): void {
@@ -443,8 +463,12 @@ export class SinusSceneManager {
       dot.position.set(x, 0.03, z);
       axisGroup.add(dot);
 
-      const { texture, aspect } = createAxisSpriteTexture(title, subtitle, accentColor);
-      texture.anisotropy = maxAnisotropy;
+      const { texture, aspect } = createAxisSpriteTexture(
+        title,
+        subtitle,
+        accentColor,
+        maxAnisotropy,
+      );
       const spriteMat = new THREE.SpriteMaterial({
         map: texture,
         transparent: true,
@@ -495,8 +519,8 @@ export class SinusSceneManager {
       'Z · Resilienz 2035',
       'Schutzhöhe 0–100',
       '#34d399',
+      maxAnisotropy,
     );
-    zTopTex.anisotropy = maxAnisotropy;
     const zTopSprite = new THREE.Sprite(
       new THREE.SpriteMaterial({ map: zTopTex, transparent: true, depthWrite: false }),
     );
@@ -542,6 +566,7 @@ export class SinusSceneManager {
     dom.addEventListener('touchstart', this.onTouchStart, { capture: true, passive: true });
     dom.addEventListener('touchend', this.onTouchEnd, { capture: true, passive: true });
     dom.addEventListener('touchcancel', this.onTouchEnd, { capture: true, passive: true });
+    dom.addEventListener('pointerdown', this.onPointerDownCapture, { capture: true });
     dom.addEventListener('pointerdown', this.onPointerDown);
     dom.addEventListener('pointerup', this.onPointerUp);
     dom.addEventListener('pointercancel', this.onPointerCancel);
@@ -551,17 +576,43 @@ export class SinusSceneManager {
     dom.addEventListener('webglcontextrestored', this.onWebglContextRestored);
   }
 
+  private syncTouchZoomState(): void {
+    this.controls.enableZoom =
+      this.fullscreenZoom || this.activeTouchPointers.size >= 2;
+  }
+
+  private onPointerDownCapture = (e: PointerEvent): void => {
+    if (e.pointerType === 'touch') {
+      this.activeTouchPointers.add(e.pointerId);
+      if (this.activeTouchPointers.size >= 2) {
+        this.wasMultiTouch = true;
+      } else if (this.activeTouchPointers.size === 1) {
+        this.wasMultiTouch = false;
+      }
+      this.syncTouchZoomState();
+    }
+  };
+
   private onTouchStart = (e: TouchEvent): void => {
     if (e.touches.length >= 2) {
       this.wasMultiTouch = true;
     } else if (e.touches.length === 1) {
       this.wasMultiTouch = false;
     }
-    this.controls.enableZoom = this.fullscreenZoom || e.touches.length >= 2;
+    this.controls.enableZoom =
+      this.fullscreenZoom ||
+      e.touches.length >= 2 ||
+      this.activeTouchPointers.size >= 2;
   };
 
   private onTouchEnd = (e: TouchEvent): void => {
-    this.controls.enableZoom = this.fullscreenZoom || e.touches.length >= 2;
+    if (e.touches.length === 0) {
+      this.activeTouchPointers.clear();
+    }
+    this.controls.enableZoom =
+      this.fullscreenZoom ||
+      e.touches.length >= 2 ||
+      this.activeTouchPointers.size >= 2;
   };
 
   private onCanvasWheel = (e: WheelEvent): void => {
@@ -576,7 +627,11 @@ export class SinusSceneManager {
     }
   };
 
-  private onPointerCancel = (): void => {
+  private onPointerCancel = (e: PointerEvent): void => {
+    if (e.pointerType === 'touch') {
+      this.activeTouchPointers.delete(e.pointerId);
+      this.syncTouchZoomState();
+    }
     this.isPointerDown = false;
     this.renderer.domElement.style.cursor = 'grab';
     this.container.removeAttribute('data-canvas-grabbing');
@@ -620,14 +675,20 @@ export class SinusSceneManager {
   };
 
   private onPointerUp = (e: PointerEvent): void => {
+    if (e.pointerType === 'touch') {
+      this.activeTouchPointers.delete(e.pointerId);
+      this.syncTouchZoomState();
+    }
     this.isPointerDown = false;
     this.renderer.domElement.style.cursor = this.hovered ? 'pointer' : 'grab';
     this.container.removeAttribute('data-canvas-grabbing');
     if (this.wasMultiTouch && e.pointerType === 'touch') {
-      this.wasMultiTouch = false;
+      if (this.activeTouchPointers.size === 0) {
+        this.wasMultiTouch = false;
+      }
       return;
     }
-    const maxTapDist = e.pointerType === 'touch' ? 14 : 8;
+    const maxTapDist = e.pointerType === 'touch' ? 16 : 8;
     const dist = Math.hypot(
       e.clientX - this.pointerDownPos.x,
       e.clientY - this.pointerDownPos.y,
@@ -703,10 +764,10 @@ export class SinusSceneManager {
   ): { fov: number; zoomScale: number; isMobile: boolean } {
     const aspect = width / Math.max(1, height);
     const isMobile = width < 640;
-    const fov = aspect < 0.95 ? 46 : aspect < 1.2 ? 42 : 40;
+    const fov = aspect < 0.95 ? 50 : aspect < 1.25 ? 45 : 40;
     const zoomScale =
       aspect < 1.25
-        ? Math.min(1.74, Math.max(1.0, 1.34 / Math.max(0.5, aspect)))
+        ? Math.min(1.36, Math.max(0.98, 1.1 / Math.max(0.55, aspect)))
         : 1.0;
     return { fov, zoomScale, isMobile };
   }
@@ -812,7 +873,7 @@ export class SinusSceneManager {
       const height = Math.max(this.container.clientHeight, 240);
       const { isMobile } = this.getViewportCameraMetrics(width, height);
       const shiftX = width > 900 ? 2.4 : 0;
-      const shiftYMobile = isMobile ? (this.fullscreenZoom ? -0.35 : 0.05) : 0;
+      const shiftYMobile = isMobile ? (this.fullscreenZoom ? -0.45 : 0.05) : 0;
 
       if (selection.kind === '2035') {
         const rig = this.islandRigs.get(selection.id as MilieuId);
@@ -820,14 +881,14 @@ export class SinusSceneManager {
           const snap = interpolateMilieuFrame(rig.spec, this.targetProgress);
           _camTargetTarget.set(
             snap.x + shiftX,
-            snap.elevation * 0.68 + shiftYMobile,
+            snap.elevation * 0.72 + shiftYMobile,
             snap.z,
           );
-          const offX = isMobile ? 2.0 : snap.x >= 0 ? 4.8 : -4.2;
+          const offX = isMobile ? 1.35 : snap.x >= 0 ? 4.8 : -4.2;
           _camPosTarget.set(
             snap.x + shiftX + offX,
-            Math.max(5.2, snap.elevation + (isMobile ? 4.6 : 3.8)),
-            snap.z + (isMobile ? 10.6 : 9.4),
+            Math.max(4.4, snap.elevation + (isMobile ? 3.4 : 3.8)),
+            snap.z + (isMobile ? 8.6 : 9.4),
           );
           this.isCameraTweening = true;
         }
@@ -837,13 +898,13 @@ export class SinusSceneManager {
           const shift2026 = width > 900 ? 2.0 : 0;
           _camTargetTarget.set(
             rig.spec.pos.x + shift2026,
-            0.2 + (isMobile && this.fullscreenZoom ? -0.3 : 0),
+            0.2 + (isMobile && this.fullscreenZoom ? -0.35 : 0),
             rig.spec.pos.z,
           );
           _camPosTarget.set(
-            rig.spec.pos.x + shift2026 + (isMobile ? 1.2 : 2.4),
-            isMobile ? 10.8 : 9.8,
-            rig.spec.pos.z + (isMobile ? 10.6 : 9.4),
+            rig.spec.pos.x + shift2026 + (isMobile ? 1.0 : 2.4),
+            isMobile ? 8.8 : 9.8,
+            rig.spec.pos.z + (isMobile ? 8.8 : 9.4),
           );
           this.isCameraTweening = true;
         }
@@ -925,7 +986,7 @@ export class SinusSceneManager {
     this.userMarker.rootGroup.visible =
       this.hasUserMarker && this.currentProgress > 0.45;
 
-    // 1. Update 6 Floating 2035 Islands
+    // 1. Update 6 Floating 2035 Islands (Scheiben)
     const has2035Selection = this.selection?.kind === '2035';
     for (const rig of this.islandRigs.values()) {
       const frame = interpolateMilieuFrame(rig.spec, this.currentProgress);
@@ -955,9 +1016,10 @@ export class SinusSceneManager {
         (rig.isSelected ? 0.95 : has2035Selection ? 0.25 : 0.7) * plumbAlpha;
 
       const focusMul =
-        has2035Selection && !rig.isSelected ? 0.34 : 1.0;
-      const baseSlabOp = (this.isSoftwareGl ? 0.78 : 0.76) * frame.opacity2035 * focusMul;
+        has2035Selection && !rig.isSelected ? 0.3 : 1.0;
 
+      const baseSlabOp = (this.isSoftwareGl ? 0.78 : 0.76) * frame.opacity2035 * focusMul;
+      const targetEm = rig.isSelected ? 0.34 : rig.isHovered ? 0.26 : 0.16;
       for (const mat of rig.slabMaterials) {
         if (Math.abs(mat.opacity - baseSlabOp) > 0.004) {
           mat.opacity = THREE.MathUtils.damp(mat.opacity, baseSlabOp, 10, safeDt);
@@ -965,7 +1027,6 @@ export class SinusSceneManager {
         } else {
           mat.opacity = baseSlabOp;
         }
-        const targetEm = rig.isSelected ? 0.34 : rig.isHovered ? 0.26 : 0.16;
         if (Math.abs(mat.emissiveIntensity - targetEm) > 0.004) {
           mat.emissiveIntensity = THREE.MathUtils.damp(
             mat.emissiveIntensity,
@@ -982,6 +1043,10 @@ export class SinusSceneManager {
       rig.undersideMat.opacity = 0.94 * frame.opacity2035 * focusMul;
       rig.anchorMat.opacity = 0.95 * frame.opacity2035 * focusMul;
       rig.shadowMat.opacity = 0.65 * frame.opacity2035 * focusMul;
+      rig.labelSprite.position.y = frame.elevation + 0.85;
+      rig.labelSprite.visible = frame.opacity2035 > 0.08;
+      rig.labelMat.opacity =
+        (rig.isSelected ? 1.0 : has2035Selection ? 0.34 : 0.95) * frame.opacity2035;
 
       const targetEdgeOp =
         (rig.isSelected ? 1.0 : rig.isHovered ? 0.9 : 0.72) *
@@ -1010,6 +1075,9 @@ export class SinusSceneManager {
         const targetEdgeOp =
           (rig.isSelected ? 1.0 : rig.isHovered ? 0.98 : has2026Selection ? 0.42 : 0.9) *
           classicFade;
+        rig.labelSprite.visible = classicFade > 0.08;
+        rig.labelMat.opacity =
+          (rig.isSelected ? 1.0 : has2026Selection ? 0.32 : 0.88) * classicFade;
         if (Math.abs(rig.fillMat.opacity - targetFillOp) > 0.004) {
           rig.fillMat.opacity = THREE.MathUtils.damp(
             rig.fillMat.opacity,
@@ -1241,6 +1309,7 @@ export class SinusSceneManager {
     dom.removeEventListener('touchstart', this.onTouchStart, { capture: true });
     dom.removeEventListener('touchend', this.onTouchEnd, { capture: true });
     dom.removeEventListener('touchcancel', this.onTouchEnd, { capture: true });
+    dom.removeEventListener('pointerdown', this.onPointerDownCapture, { capture: true });
     dom.removeEventListener('pointerdown', this.onPointerDown);
     dom.removeEventListener('pointerup', this.onPointerUp);
     dom.removeEventListener('pointercancel', this.onPointerCancel);
