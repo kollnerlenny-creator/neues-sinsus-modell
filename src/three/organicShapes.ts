@@ -10,10 +10,10 @@ export interface FloatingIslandRig {
   plumbGeo: THREE.BufferGeometry;
   plumbMat: THREE.LineDashedMaterial;
   hitMesh: THREE.Mesh;
-  slabMaterials: THREE.MeshPhysicalMaterial[];
-  undersideMat: THREE.MeshStandardMaterial;
+  slabMaterials: THREE.MeshStandardMaterial[];
+  undersideMat: THREE.MeshLambertMaterial;
   edgeMaterials: THREE.LineBasicMaterial[];
-  anchorMat: THREE.MeshStandardMaterial;
+  anchorMat: THREE.MeshLambertMaterial;
   shadowMat: THREE.MeshBasicMaterial;
   currentX: number;
   currentZ: number;
@@ -28,7 +28,7 @@ export interface Classic2026Rig {
   spec: ClassicMilieu2026Spec;
   rootGroup: THREE.Group;
   hitMesh: THREE.Mesh;
-  fillMat: THREE.MeshPhysicalMaterial;
+  fillMat: THREE.MeshLambertMaterial;
   edgeMat: THREE.LineBasicMaterial;
   isHovered: boolean;
   isSelected: boolean;
@@ -61,7 +61,7 @@ function createOrganicContour(
     'catmullrom',
     0.55,
   );
-  const sampled = curve3.getPoints(52);
+  const sampled = curve3.getPoints(26);
   const shape = new THREE.Shape();
   shape.moveTo(sampled[0].x, sampled[0].y);
   for (let i = 1; i < sampled.length; i++) {
@@ -147,11 +147,7 @@ function getSoftGroundShadowTexture(): THREE.CanvasTexture {
  * Builds a floating translucent 3D organic island for the 2035 state,
  * with crisp typography printed directly on top of the bubble and a vertical plumb line.
  */
-export function buildFloatingIslandRig(
-  spec: MilieuSpec,
-  isSoftwareGl: boolean,
-  maxAnisotropy = 4,
-): FloatingIslandRig {
+export function buildFloatingIslandRig(spec: MilieuSpec): FloatingIslandRig {
   const rootGroup = new THREE.Group();
   rootGroup.name = `island_${spec.id}`;
   rootGroup.position.set(spec.pos2035.x, 0, spec.pos2035.z);
@@ -167,16 +163,16 @@ export function buildFloatingIslandRig(
   const baseColor = new THREE.Color(spec.colorHex);
   const brightEdgeColor = baseColor.clone().lerp(new THREE.Color('#ffffff'), 0.42);
 
-  const slabMaterials: THREE.MeshPhysicalMaterial[] = [];
+  const slabMaterials: THREE.MeshStandardMaterial[] = [];
   const edgeMaterials: THREE.LineBasicMaterial[] = [];
 
   // 1. Soft contact shadow projection on floor directly under island
-  const shadowGeo = new THREE.CircleGeometry(spec.footprintRadius * 1.12, 32);
+  const shadowGeo = new THREE.CircleGeometry(spec.footprintRadius * 1.14, 24);
   shadowGeo.rotateX(-Math.PI / 2);
   const shadowMat = new THREE.MeshBasicMaterial({
     map: getSoftGroundShadowTexture(),
     transparent: true,
-    opacity: 0.65,
+    opacity: 0.72,
     depthWrite: false,
   });
   const shadowDisc = new THREE.Mesh(shadowGeo, shadowMat);
@@ -184,21 +180,19 @@ export function buildFloatingIslandRig(
   floorAnchorGroup.add(shadowDisc);
 
   // 2. Floor anchor dot + ring at (0, 0.024, 0) where the plumb line meets the floor
-  const anchorMat = new THREE.MeshStandardMaterial({
+  const anchorMat = new THREE.MeshLambertMaterial({
     color: baseColor,
     emissive: baseColor,
     emissiveIntensity: 0.45,
-    roughness: 0.35,
-    metalness: 0.1,
     transparent: true,
     opacity: 0.95,
   });
-  const dotGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.03, 20);
+  const dotGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.03, 14);
   const dotMesh = new THREE.Mesh(dotGeo, anchorMat);
   dotMesh.position.y = 0.025;
   floorAnchorGroup.add(dotMesh);
 
-  const anchorRingGeo = new THREE.RingGeometry(0.22, 0.28, 28);
+  const anchorRingGeo = new THREE.RingGeometry(0.22, 0.28, 20);
   anchorRingGeo.rotateX(-Math.PI / 2);
   const anchorRingMat = new THREE.MeshBasicMaterial({
     color: brightEdgeColor,
@@ -227,68 +221,58 @@ export function buildFloatingIslandRig(
   plumbLine.computeLineDistances();
   rootGroup.add(plumbLine);
 
-  // 4. Matte dark-graphite metallic underside chassis plate
-  const undersideMat = new THREE.MeshStandardMaterial({
+  // 4. Matte dark-graphite underside chassis plate (lightweight Lambert shader)
+  const undersideMat = new THREE.MeshLambertMaterial({
     color: new THREE.Color('#1c1e24'),
-    roughness: 0.65,
-    metalness: 0.32,
     transparent: true,
     opacity: 0.94,
   });
 
-  // 5. Build beveled translucent floating island slab(s)
+  // 5. Build beveled translucent floating island slab(s) using sleek PBR StandardMaterial
   for (const shape of shapes) {
     const basePlateGeo = new THREE.ExtrudeGeometry(shape, {
       depth: 0.06,
-      bevelEnabled: true,
-      bevelThickness: 0.02,
-      bevelSize: 0.02,
-      bevelSegments: 1,
-      curveSegments: 18,
+      bevelEnabled: false,
+      curveSegments: 10,
     });
     basePlateGeo.rotateX(-Math.PI / 2);
     const basePlateMesh = new THREE.Mesh(basePlateGeo, undersideMat);
     basePlateMesh.position.y = -0.14;
     basePlateMesh.scale.set(0.95, 1, 0.95);
-    basePlateMesh.receiveShadow = !isSoftwareGl;
     islandGroup.add(basePlateMesh);
 
     const slabGeo = new THREE.ExtrudeGeometry(shape, {
       depth: 0.24,
       bevelEnabled: true,
-      bevelThickness: 0.065,
-      bevelSize: 0.06,
-      bevelSegments: 2,
-      curveSegments: 22,
+      bevelThickness: 0.06,
+      bevelSize: 0.055,
+      bevelSegments: 1,
+      curveSegments: 12,
     });
     slabGeo.rotateX(-Math.PI / 2);
 
-    const slabMat = new THREE.MeshPhysicalMaterial({
+    const slabMat = new THREE.MeshStandardMaterial({
       color: baseColor,
       emissive: new THREE.Color(spec.emissiveHex),
-      emissiveIntensity: 0.18,
-      roughness: 0.14,
-      metalness: 0.08,
-      clearcoat: 0.9,
-      clearcoatRoughness: 0.1,
+      emissiveIntensity: 0.2,
+      roughness: 0.18,
+      metalness: 0.12,
       transparent: true,
       opacity: 0.8,
-      envMapIntensity: 1.25,
+      envMapIntensity: 1.35,
     });
     slabMaterials.push(slabMat);
 
     const slabMesh = new THREE.Mesh(slabGeo, slabMat);
     slabMesh.position.y = -0.06;
-    slabMesh.castShadow = !isSoftwareGl;
-    slabMesh.receiveShadow = !isSoftwareGl;
     slabMesh.userData.milieuId = spec.id;
     islandGroup.add(slabMesh);
 
-    const edgesGeo = new THREE.EdgesGeometry(slabGeo, 26);
+    const edgesGeo = new THREE.EdgesGeometry(slabGeo, 28);
     const edgeMat = new THREE.LineBasicMaterial({
       color: brightEdgeColor,
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.76,
     });
     edgeMaterials.push(edgeMat);
     const edgeLines = new THREE.LineSegments(edgesGeo, edgeMat);
@@ -343,7 +327,6 @@ export function buildFloatingIslandRig(
  */
 export function buildClassic2026Rig(
   spec: ClassicMilieu2026Spec,
-  maxAnisotropy = 4,
 ): Classic2026Rig {
   const rootGroup = new THREE.Group();
   rootGroup.name = `classic2026_${spec.id}`;
@@ -356,18 +339,16 @@ export function buildClassic2026Rig(
   const discGeo = new THREE.ExtrudeGeometry(shape, {
     depth: 0.025,
     bevelEnabled: false,
-    curveSegments: 36,
+    curveSegments: 22,
   });
   discGeo.rotateX(-Math.PI / 2);
 
   const color = new THREE.Color(spec.colorHex);
   const brightEdge = color.clone().lerp(new THREE.Color('#ffffff'), 0.28);
-  const fillMat = new THREE.MeshPhysicalMaterial({
+  const fillMat = new THREE.MeshLambertMaterial({
     color,
     emissive: color,
-    emissiveIntensity: 0.14,
-    roughness: 0.28,
-    metalness: 0.02,
+    emissiveIntensity: 0.16,
     transparent: true,
     opacity: 0.3,
     depthWrite: false,
@@ -380,7 +361,7 @@ export function buildClassic2026Rig(
   rootGroup.add(discMesh);
 
   // Crisp luminous perimeter outline
-  const pts = shape.getPoints(56).map((p) => new THREE.Vector3(p.x, 0.028, -p.y));
+  const pts = shape.getPoints(36).map((p) => new THREE.Vector3(p.x, 0.028, -p.y));
   pts.push(pts[0].clone());
   const outlineGeo = new THREE.BufferGeometry().setFromPoints(pts);
   const edgeMat = new THREE.LineBasicMaterial({
@@ -396,7 +377,7 @@ export function buildClassic2026Rig(
     Math.max(spec.radiusX, spec.radiusZ) * 0.92,
     Math.max(spec.radiusX, spec.radiusZ) * 0.92,
     0.25,
-    18,
+    14,
   );
   const hitMat = new THREE.MeshBasicMaterial({ visible: false });
   const hitMesh = new THREE.Mesh(hitGeo, hitMat);

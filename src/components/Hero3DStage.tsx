@@ -358,7 +358,7 @@ export function Hero3DStage({
                         type="button"
                         onClick={() => onSelectMilieu({ kind: '2035', id: m.id })}
                         data-testid={`legend-btn-${m.id}`}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                           isSelected
                             ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
                             : 'border border-white/[0.08] bg-white/[0.03] text-[#d1d5db] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'
@@ -390,7 +390,7 @@ export function Hero3DStage({
                         key={c.id}
                         type="button"
                         onClick={() => onSelectMilieu({ kind: '2026', id: c.id })}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
+                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
                           isSelected
                             ? 'bg-[#f7f8f8] text-[#08090a] font-semibold shadow-sm'
                             : 'border border-white/[0.08] bg-white/[0.03] text-[#cbd5e1] hover:border-white/[0.18] hover:bg-white/[0.08] hover:text-white'

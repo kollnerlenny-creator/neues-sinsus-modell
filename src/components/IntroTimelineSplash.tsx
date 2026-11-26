@@ -174,7 +174,7 @@ export function IntroTimelineSplash({ onComplete }: IntroTimelineSplashProps) {
         {/* Centerpiece Warp-Zoom Stage */}
         <motion.div
           animate={{
-            scale: isZooming ? 2.65 : isFocused2035 ? 1.04 : 1,
+            scale: isZooming ? 1.38 : isFocused2035 ? 1.04 : 1,
             opacity: isZooming ? 0 : 1,
           }}
           transition={{
