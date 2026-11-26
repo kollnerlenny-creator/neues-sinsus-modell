@@ -10,8 +10,8 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
-import { useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useState } from 'react';
 import { MILIEUS } from '../data/milieus';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
@@ -124,15 +124,6 @@ export function DistributionSection() {
   const [expandedShifts, setExpandedShifts] = useState<Record<string, boolean>>({
     '01': true,
   });
-  const ledgerRef = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress: ledgerProgress } = useScroll({
-    target: ledgerRef,
-    offset: ['start 82%', 'end 68%'],
-  });
-  const smoothLedgerProgress = useSpring(ledgerProgress, {
-    stiffness: 180,
-    damping: 28,
-  });
 
   const toggleShift = (num: string) => {
     setExpandedShifts((prev) => ({ ...prev, [num]: !prev[num] }));
@@ -181,12 +172,12 @@ export function DistributionSection() {
             return (
               <motion.div
                 key={m.id}
-                initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.1 }}
                 transition={{
-                  duration: 0.5,
-                  delay: idx * 0.06,
+                  duration: 0.4,
+                  delay: idx * 0.04,
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 className="linear-fade-window rounded-2xl p-5"
@@ -243,26 +234,20 @@ export function DistributionSection() {
           })}
         </motion.div>
 
-        {/* Linear Architectural Causal Ledger with Scroll-Driven Vertical Rail */}
+        {/* Linear Architectural Causal Ledger */}
         <motion.div
-          ref={ledgerRef}
-          initial={{ opacity: 0, y: 24, scale: 0.985 }}
-          whileInView={{ opacity: 1, y: 0, scale: 1 }}
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.08 }}
-          transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           data-testid="distribution-ledger"
           className="linear-fade-window relative mt-8 divide-y divide-white/[0.08] overflow-hidden rounded-3xl"
         >
-          {/* Scroll-driven left spine highlighting progression through the 4 causal shifts */}
+          {/* Left gradient accent spine */}
           <div
             aria-hidden="true"
-            className="pointer-events-none hidden lg:block absolute left-0 top-0 bottom-0 w-[2px] bg-white/[0.04]"
-          >
-            <motion.div
-              style={{ scaleY: smoothLedgerProgress, transformOrigin: 'top center' }}
-              className="h-full w-full bg-gradient-to-b from-violet-400 via-amber-400 to-emerald-400 opacity-85"
-            />
-          </div>
+            className="pointer-events-none hidden lg:block absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-violet-400 via-amber-400 to-emerald-400 opacity-75"
+          />
 
           {CAUSAL_SHIFTS.map((item, idx) => {
             const ShiftIcon = item.icon;

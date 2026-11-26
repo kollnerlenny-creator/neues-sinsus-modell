@@ -250,7 +250,7 @@ export default function App() {
         {/* Subtle Linear-style ambient light points fading into black */}
         <div
           aria-hidden="true"
-          className="pointer-events-none fixed inset-0 z-0"
+          className="pointer-events-none absolute inset-x-0 top-0 h-[960px] z-0"
           style={{
             backgroundImage: [
               'radial-gradient(900px circle at 50% 0%, rgba(255, 255, 255, 0.075), transparent 64%)',

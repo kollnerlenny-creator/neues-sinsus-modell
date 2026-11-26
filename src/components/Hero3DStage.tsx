@@ -13,7 +13,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import { AnimatePresence, motion, useScroll, useSpring, useTransform } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import {
   CLASSIC_MILIEUS_2026,
@@ -58,19 +58,8 @@ export function Hero3DStage({
   onZoomStep,
   onFullscreenChange,
 }: Hero3DStageProps) {
-  const sectionRef = useRef<HTMLElement | null>(null);
   const stageBoxRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start 96%', 'start 32%'],
-  });
-  const rawScale = useTransform(scrollYProgress, [0, 1], [0.95, 1]);
-  const rawY = useTransform(scrollYProgress, [0, 1], [30, 0]);
-  const rawOpacity = useTransform(scrollYProgress, [0, 1], [0.55, 1]);
-  const stageScale = useSpring(rawScale, { stiffness: 180, damping: 28 });
-  const stageY = useSpring(rawY, { stiffness: 180, damping: 28 });
 
   const selected2035: MilieuSpec | null =
     selection?.kind === '2035'
@@ -142,17 +131,16 @@ export function Hero3DStage({
 
   return (
     <section
-      ref={sectionRef}
       id="modell-3d"
       className="section-anchor relative border-t border-white/[0.06] pb-16 pt-10 sm:pb-22 sm:pt-14"
     >
       <div className="mx-auto max-w-[1360px] px-3.5 sm:px-6 lg:px-8">
         {/* Linear-style Asymmetric Split Editorial Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 14 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.15 }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
+          viewport={{ once: true, amount: 0.12 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-end"
         >
           <div className="lg:col-span-7">
@@ -226,18 +214,9 @@ export function Hero3DStage({
           </div>
         </motion.div>
 
-        {/* Scroll-Driven Linear Architectural 3D Stage Window Fading into Black */}
-        <motion.div
+        {/* Linear Architectural 3D Stage Window Fading into Black */}
+        <div
           ref={stageBoxRef}
-          style={
-            isFullscreen
-              ? undefined
-              : {
-                  scale: stageScale,
-                  y: stageY,
-                  opacity: rawOpacity,
-                }
-          }
           data-testid="three-stage-box"
           data-fullscreen={isFullscreen ? 'true' : 'false'}
           data-mode={mode}
@@ -800,7 +779,7 @@ export function Hero3DStage({
               )}
             </AnimatePresence>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

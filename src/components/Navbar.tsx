@@ -1,5 +1,5 @@
 import { Menu, Share2, X } from 'lucide-react';
-import { motion, useScroll, useSpring } from 'motion/react';
+import { motion, useScroll } from 'motion/react';
 import { useState } from 'react';
 
 const NAV_LINKS = [
@@ -17,19 +17,14 @@ interface NavbarProps {
 export function Navbar({ onOpenShare }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { scrollYProgress } = useScroll();
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 240,
-    damping: 32,
-    restDelta: 0.001,
-  });
 
   return (
     <header className="sticky top-3 z-40 px-3.5 sm:px-6 lg:px-8 pointer-events-none">
-      <div className="pointer-events-auto relative mx-auto flex h-13 sm:h-14 max-w-[1220px] items-center justify-between gap-4 sm:gap-8 overflow-hidden rounded-full border border-white/[0.11] bg-[#090a0d]/88 px-4 sm:px-6 backdrop-blur-xl shadow-[0_1px_0_0_rgba(255,255,255,0.07)_inset,0_16px_40px_rgba(0,0,0,0.68)]">
+      <div className="pointer-events-auto relative mx-auto flex h-13 sm:h-14 max-w-[1220px] items-center justify-between gap-4 sm:gap-8 overflow-hidden rounded-full border border-white/[0.11] bg-[#090a0d]/95 px-4 sm:px-6 shadow-[0_1px_0_0_rgba(255,255,255,0.07)_inset,0_14px_32px_rgba(0,0,0,0.72)]">
         {/* Subtle Linear scroll progress hairline at bottom of header */}
         <motion.div
           aria-hidden="true"
-          style={{ scaleX: smoothProgress, transformOrigin: 'left center' }}
+          style={{ scaleX: scrollYProgress, transformOrigin: 'left center' }}
           className="pointer-events-none absolute inset-x-4 bottom-0 h-[1.5px] bg-gradient-to-r from-white/40 via-emerald-400 to-emerald-300 opacity-80"
         />
 
@@ -91,7 +86,7 @@ export function Navbar({ onOpenShare }: NavbarProps) {
       {mobileOpen && (
         <nav
           aria-label="Mobile Navigation"
-          className="pointer-events-auto mx-auto mt-2 max-w-[1220px] rounded-2xl border border-white/[0.1] bg-[#0a0b0e]/96 p-2.5 backdrop-blur-xl shadow-2xl md:hidden"
+          className="pointer-events-auto mx-auto mt-2 max-w-[1220px] rounded-2xl border border-white/[0.1] bg-[#0a0b0e]/98 p-2.5 shadow-2xl md:hidden"
         >
           <div className="flex flex-col gap-1">
             {NAV_LINKS.map((link) => (

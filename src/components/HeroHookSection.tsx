@@ -40,15 +40,12 @@ export function HeroHookSection() {
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage: [
-            'radial-gradient(840px circle at 50% 12%, rgba(255, 255, 255, 0.085), transparent 68%)',
-            'linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
-            'linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
+            'linear-gradient(to top, #040406 0%, rgba(4,4,6,0.4) 30%, rgba(4,4,6,0) 75%)',
+            'radial-gradient(840px circle at 50% 12%, rgba(255, 255, 255, 0.075), transparent 68%)',
+            'linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px)',
+            'linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px)',
           ].join(', '),
-          backgroundSize: '100% 100%, 72px 72px, 72px 72px',
-          maskImage:
-            'linear-gradient(to bottom, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.5) 70%, transparent 100%)',
-          WebkitMaskImage:
-            'linear-gradient(to bottom, rgba(0,0,0,0.95) 20%, rgba(0,0,0,0.5) 70%, transparent 100%)',
+          backgroundSize: '100% 100%, 100% 100%, 72px 72px, 72px 72px',
         }}
       />
 
@@ -168,7 +165,7 @@ export function HeroHookSection() {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 0.7, delay: 0.35 }}
+          transition={{ duration: 0.55, delay: 0.25 }}
           className="mt-8 flex justify-center"
         >
           <a
@@ -176,12 +173,7 @@ export function HeroHookSection() {
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-[#8a8f98] hover:text-[#f7f8f8] transition-colors"
           >
             <span>Nach unten scrollen für das interaktive 3D-Modell</span>
-            <motion.span
-              animate={{ y: [0, 4, 0] }}
-              transition={{ duration: 2.0, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <ArrowDown className="h-4 w-4" aria-hidden="true" />
-            </motion.span>
+            <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </a>
         </motion.div>
       </div>

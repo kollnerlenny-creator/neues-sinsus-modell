@@ -243,8 +243,8 @@ export function buildFloatingIslandRig(
       bevelEnabled: true,
       bevelThickness: 0.02,
       bevelSize: 0.02,
-      bevelSegments: 2,
-      curveSegments: 28,
+      bevelSegments: 1,
+      curveSegments: 18,
     });
     basePlateGeo.rotateX(-Math.PI / 2);
     const basePlateMesh = new THREE.Mesh(basePlateGeo, undersideMat);
@@ -258,8 +258,8 @@ export function buildFloatingIslandRig(
       bevelEnabled: true,
       bevelThickness: 0.065,
       bevelSize: 0.06,
-      bevelSegments: 4,
-      curveSegments: 32,
+      bevelSegments: 2,
+      curveSegments: 22,
     });
     slabGeo.rotateX(-Math.PI / 2);
 
@@ -268,14 +268,11 @@ export function buildFloatingIslandRig(
       emissive: new THREE.Color(spec.emissiveHex),
       emissiveIntensity: 0.18,
       roughness: 0.14,
-      metalness: 0.06,
-      clearcoat: 1.0,
-      clearcoatRoughness: 0.08,
+      metalness: 0.08,
+      clearcoat: 0.9,
+      clearcoatRoughness: 0.1,
       transparent: true,
-      opacity: isSoftwareGl ? 0.78 : 0.76,
-      transmission: isSoftwareGl ? 0 : 0.16,
-      ior: 1.48,
-      thickness: 0.5,
+      opacity: 0.8,
       envMapIntensity: 1.25,
     });
     slabMaterials.push(slabMat);

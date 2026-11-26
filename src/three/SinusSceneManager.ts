@@ -152,10 +152,13 @@ export class SinusSceneManager {
   private renderBusy = false;
   private renderDirty = false;
   private isDisposed = false;
+  private isVisibleInViewport = true;
+  private gpuRafScheduled = false;
   private lastHoverRaycast = 0;
   private lastZoomScale = 1.0;
 
   private resizeObserver: ResizeObserver;
+  private intersectionObserver: IntersectionObserver | null = null;
 
   constructor(container: HTMLElement, callbacks: SceneCallbacks) {
     this.container = container;
@@ -188,7 +191,7 @@ export class SinusSceneManager {
     });
     this.renderer.setSize(width, height);
     this.renderer.setPixelRatio(
-      this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2),
+      this.isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 1.5),
     );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -202,7 +205,7 @@ export class SinusSceneManager {
     this.renderer.domElement.style.cursor = 'grab';
     this.container.appendChild(this.renderer.domElement);
 
-    const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const maxAnisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
 
     // 4. Studio Environment Reflections
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -215,7 +218,7 @@ export class SinusSceneManager {
     this.controls.target.copy(DEFAULT_CAMERA_TARGET);
     this.controls.enableZoom = false;
     this.controls.enableDamping = !this.isSoftwareGl;
-    this.controls.dampingFactor = 0.065;
+    this.controls.dampingFactor = 0.075;
     this.controls.minDistance = 8.5;
     this.controls.maxDistance = 70;
     this.controls.minPolarAngle = 0.16;
@@ -224,12 +227,11 @@ export class SinusSceneManager {
 
     this.controls.addEventListener('start', () => {
       this.isCameraTweening = false;
+      this.scheduleRender();
     });
 
     this.controls.addEventListener('change', () => {
-      if (this.isSoftwareGl) {
-        this.requestRender();
-      }
+      this.scheduleRender();
     });
 
     // 6. Lighting Rig
@@ -276,12 +278,24 @@ export class SinusSceneManager {
     this.resizeObserver = new ResizeObserver(() => this.handleResize());
     this.resizeObserver.observe(this.container);
 
-    this.lastTickMs = performance.now();
-    if (this.isSoftwareGl) {
-      this.requestRender();
-    } else {
-      this.tickGpu();
+    if (typeof IntersectionObserver !== 'undefined') {
+      this.intersectionObserver = new IntersectionObserver(
+        (entries) => {
+          const entry = entries[0];
+          const visible = Boolean(entry?.isIntersecting);
+          this.isVisibleInViewport = visible;
+          if (visible) {
+            this.lastTickMs = performance.now();
+            this.scheduleRender();
+          }
+        },
+        { rootMargin: '120px 0px' },
+      );
+      this.intersectionObserver.observe(this.container);
     }
+
+    this.lastTickMs = performance.now();
+    this.scheduleRender();
   }
 
   private setupLighting(): void {
@@ -296,7 +310,7 @@ export class SinusSceneManager {
     keyLight.position.set(12, 22, 12);
     if (!this.isSoftwareGl) {
       keyLight.castShadow = true;
-      keyLight.shadow.mapSize.set(1024, 1024);
+      keyLight.shadow.mapSize.set(512, 512);
       keyLight.shadow.camera.near = 2;
       keyLight.shadow.camera.far = 55;
       keyLight.shadow.camera.left = -14;
@@ -632,7 +646,7 @@ export class SinusSceneManager {
       this.renderer.domElement.style.cursor = nextHover ? 'pointer' : 'grab';
       this.container.setAttribute('data-hover-3d', nextHover ? 'true' : 'false');
       this.callbacks.onHover(nextHover);
-      if (this.isSoftwareGl) this.requestRender();
+      this.scheduleRender();
     }
   };
 
@@ -684,9 +698,7 @@ export class SinusSceneManager {
     }
     this.lastZoomScale = metrics.zoomScale;
 
-    if (this.isSoftwareGl) {
-      this.requestRender();
-    }
+    this.scheduleRender();
   }
 
   public setMode(mode: ModelMode): void {
@@ -706,7 +718,7 @@ export class SinusSceneManager {
     } else if (!this.selection) {
       this.resetCamera();
     }
-    if (this.isSoftwareGl) this.requestRender();
+    this.scheduleRender();
   }
 
   public setUserSelfTestMarker(
@@ -715,7 +727,7 @@ export class SinusSceneManager {
     if (!coords) {
       this.hasUserMarker = false;
       this.userMarker.rootGroup.visible = false;
-      if (this.isSoftwareGl) this.requestRender();
+      this.scheduleRender();
       return;
     }
     const world = scoreToWorldCoords(coords.uX, coords.uY, coords.uZ);
@@ -733,7 +745,7 @@ export class SinusSceneManager {
     this.userMarker.plumbLine.computeLineDistances();
 
     this.userMarker.rootGroup.visible = this.currentProgress > 0.45;
-    if (this.isSoftwareGl) this.requestRender();
+    this.scheduleRender();
   }
 
   public applySelection(selection: SelectionPayload | null, tweenCamera = true): void {
@@ -787,7 +799,7 @@ export class SinusSceneManager {
         }
       }
     }
-    if (this.isSoftwareGl) this.requestRender();
+    this.scheduleRender();
   }
 
   public setFullscreenZoom(enabled: boolean): void {
@@ -808,7 +820,7 @@ export class SinusSceneManager {
     _camTargetTarget.copy(this.controls.target);
     _camPosTarget.copy(this.controls.target).add(offset);
     this.isCameraTweening = true;
-    if (this.isSoftwareGl) this.requestRender();
+    this.scheduleRender();
   }
 
   public resetCamera(): void {
@@ -819,7 +831,7 @@ export class SinusSceneManager {
     _camPosTarget.copy(DEFAULT_CAMERA_POS).multiplyScalar(zoomScale);
     _camTargetTarget.copy(DEFAULT_CAMERA_TARGET);
     this.isCameraTweening = true;
-    if (this.isSoftwareGl) this.requestRender();
+    this.scheduleRender();
   }
 
   private stepAnimations(dt: number): boolean {
@@ -900,14 +912,24 @@ export class SinusSceneManager {
       const baseSlabOp = (this.isSoftwareGl ? 0.78 : 0.76) * frame.opacity2035 * focusMul;
 
       for (const mat of rig.slabMaterials) {
-        mat.opacity = THREE.MathUtils.damp(mat.opacity, baseSlabOp, 10, safeDt);
+        if (Math.abs(mat.opacity - baseSlabOp) > 0.004) {
+          mat.opacity = THREE.MathUtils.damp(mat.opacity, baseSlabOp, 10, safeDt);
+          moving = true;
+        } else {
+          mat.opacity = baseSlabOp;
+        }
         const targetEm = rig.isSelected ? 0.34 : rig.isHovered ? 0.26 : 0.16;
-        mat.emissiveIntensity = THREE.MathUtils.damp(
-          mat.emissiveIntensity,
-          targetEm,
-          10,
-          safeDt,
-        );
+        if (Math.abs(mat.emissiveIntensity - targetEm) > 0.004) {
+          mat.emissiveIntensity = THREE.MathUtils.damp(
+            mat.emissiveIntensity,
+            targetEm,
+            10,
+            safeDt,
+          );
+          moving = true;
+        } else {
+          mat.emissiveIntensity = targetEm;
+        }
       }
 
       rig.undersideMat.opacity = 0.94 * frame.opacity2035 * focusMul;
@@ -919,7 +941,12 @@ export class SinusSceneManager {
         frame.opacity2035 *
         focusMul;
       for (const edgeMat of rig.edgeMaterials) {
-        edgeMat.opacity = THREE.MathUtils.damp(edgeMat.opacity, targetEdgeOp, 10, safeDt);
+        if (Math.abs(edgeMat.opacity - targetEdgeOp) > 0.004) {
+          edgeMat.opacity = THREE.MathUtils.damp(edgeMat.opacity, targetEdgeOp, 10, safeDt);
+          moving = true;
+        } else {
+          edgeMat.opacity = targetEdgeOp;
+        }
       }
     }
 
@@ -936,18 +963,28 @@ export class SinusSceneManager {
         const targetEdgeOp =
           (rig.isSelected ? 1.0 : rig.isHovered ? 0.98 : has2026Selection ? 0.42 : 0.9) *
           classicFade;
-        rig.fillMat.opacity = THREE.MathUtils.damp(
-          rig.fillMat.opacity,
-          targetFillOp,
-          10,
-          safeDt,
-        );
-        rig.edgeMat.opacity = THREE.MathUtils.damp(
-          rig.edgeMat.opacity,
-          targetEdgeOp,
-          10,
-          safeDt,
-        );
+        if (Math.abs(rig.fillMat.opacity - targetFillOp) > 0.004) {
+          rig.fillMat.opacity = THREE.MathUtils.damp(
+            rig.fillMat.opacity,
+            targetFillOp,
+            10,
+            safeDt,
+          );
+          moving = true;
+        } else {
+          rig.fillMat.opacity = targetFillOp;
+        }
+        if (Math.abs(rig.edgeMat.opacity - targetEdgeOp) > 0.004) {
+          rig.edgeMat.opacity = THREE.MathUtils.damp(
+            rig.edgeMat.opacity,
+            targetEdgeOp,
+            10,
+            safeDt,
+          );
+          moving = true;
+        } else {
+          rig.edgeMat.opacity = targetEdgeOp;
+        }
       }
     }
 
@@ -1097,16 +1134,36 @@ export class SinusSceneManager {
     });
   }
 
-  private tickGpu = (): void => {
+  private scheduleRender(): void {
     if (this.isDisposed) return;
+    if (this.isSoftwareGl) {
+      this.requestRender();
+      return;
+    }
+    if (!this.isVisibleInViewport || this.gpuRafScheduled) return;
+    this.gpuRafScheduled = true;
+    this.lastTickMs = performance.now();
+    this.frameId = requestAnimationFrame(this.tickGpu);
+  }
+
+  private tickGpu = (): void => {
+    this.gpuRafScheduled = false;
+    if (this.isDisposed || !this.isVisibleInViewport) return;
+
     const now = performance.now();
     const dt = Math.max(0.001, (now - this.lastTickMs) / 1000);
     this.lastTickMs = now;
-    this.stepAnimations(dt);
-    this.controls.update();
+    const stillMoving = this.stepAnimations(dt);
+    const controlsMoved = this.controls.update();
     this.renderer.render(this.scene, this.camera);
-    this.projectAndEmitLabels();
-    this.frameId = requestAnimationFrame(this.tickGpu);
+    if (this.hasUserMarker) {
+      this.projectAndEmitLabels();
+    }
+
+    if (stillMoving || controlsMoved) {
+      this.gpuRafScheduled = true;
+      this.frameId = requestAnimationFrame(this.tickGpu);
+    }
   };
 
   public dispose(): void {
@@ -1114,6 +1171,7 @@ export class SinusSceneManager {
     cancelAnimationFrame(this.frameId);
     clearTimeout(this.frameId);
     this.resizeObserver.disconnect();
+    this.intersectionObserver?.disconnect();
 
     const dom = this.renderer.domElement;
     dom.removeEventListener('wheel', this.onCanvasWheel, { capture: true });

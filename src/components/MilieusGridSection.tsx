@@ -114,12 +114,12 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
               <motion.article
                 key={m.id}
                 data-testid={`detail-card-${m.id}`}
-                initial={{ opacity: 0, y: 28, scale: 0.98 }}
-                whileInView={{ opacity: 1, y: 0, scale: 1 }}
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.08 }}
                 transition={{
-                  duration: 0.58,
-                  delay: (idx % 2) * 0.09,
+                  duration: 0.42,
+                  delay: (idx % 2) * 0.05,
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 className="linear-fade-window linear-surface-interactive flex flex-col justify-between overflow-hidden rounded-3xl p-7 sm:p-8"

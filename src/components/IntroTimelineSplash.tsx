@@ -43,36 +43,39 @@ export function IntroTimelineSplash({ onComplete }: IntroTimelineSplashProps) {
       return;
     }
 
-    // Smooth numeric odometer tick from 2026 -> 2035 over ~2.9s
+    // Smooth numeric odometer tick from 2026 -> 2035 (only updates state when integer changes)
     const startMs = performance.now();
-    const sweepDurationMs = 2900;
+    const sweepDurationMs = 1950;
     let rafId = 0;
+    let lastYear = 2026;
 
     const updateYearCounter = (now: number) => {
       const elapsed = now - startMs;
       const t = Math.min(1, elapsed / sweepDurationMs);
-      // Ease out cubic so early years roll cleanly and lock onto 2035
       const eased = 1 - Math.pow(1 - t, 2.2);
       const yr = Math.min(2035, Math.round(2026 + eased * 9));
-      setDisplayYear(yr);
+      if (yr !== lastYear) {
+        lastYear = yr;
+        setDisplayYear(yr);
+      }
       if (t < 1) {
         rafId = requestAnimationFrame(updateYearCounter);
       }
     };
     rafId = requestAnimationFrame(updateYearCounter);
 
-    const t1 = window.setTimeout(() => setActiveYear(2029), 850);
-    const t2 = window.setTimeout(() => setActiveYear(2032), 1850);
+    const t1 = window.setTimeout(() => setActiveYear(2029), 580);
+    const t2 = window.setTimeout(() => setActiveYear(2032), 1250);
     const t3 = window.setTimeout(() => {
       setActiveYear(2035);
       setDisplayYear(2035);
       setPhase('focus');
-    }, 2950);
-    const t4 = window.setTimeout(() => setPhase('zoom'), 4050);
+    }, 1980);
+    const t4 = window.setTimeout(() => setPhase('zoom'), 2750);
     const t5 = window.setTimeout(() => {
       setPhase('done');
       onComplete();
-    }, 4850);
+    }, 3350);
 
     return () => {
       cancelAnimationFrame(rafId);
@@ -132,21 +135,16 @@ export function IntroTimelineSplash({ onComplete }: IntroTimelineSplashProps) {
             }}
           />
 
-          {/* Receding Architectural Perspective Floor Grid */}
+          {/* Subtle Architectural Floor Grid (no expensive CSS maskImage) */}
           <div
-            className="absolute inset-x-[-20%] bottom-[-18%] h-[68vh]"
+            className="absolute inset-x-0 bottom-0 h-[56vh] opacity-55"
             style={{
-              transform: 'perspective(820px) rotateX(68deg)',
-              transformOrigin: 'center top',
               backgroundImage: [
-                'linear-gradient(to right, rgba(255,255,255,0.065) 1px, transparent 1px)',
-                'linear-gradient(to bottom, rgba(255,255,255,0.065) 1px, transparent 1px)',
+                'linear-gradient(to top, rgba(3,3,5,1) 0%, rgba(3,3,5,0) 65%)',
+                'linear-gradient(to right, rgba(255,255,255,0.045) 1px, transparent 1px)',
+                'linear-gradient(to bottom, rgba(255,255,255,0.045) 1px, transparent 1px)',
               ].join(', '),
-              backgroundSize: '64px 64px',
-              maskImage:
-                'radial-gradient(ellipse 75% 80% at 50% 25%, black 15%, transparent 78%)',
-              WebkitMaskImage:
-                'radial-gradient(ellipse 75% 80% at 50% 25%, black 15%, transparent 78%)',
+              backgroundSize: '100% 100%, 64px 64px, 64px 64px',
             }}
           />
 
@@ -198,13 +196,16 @@ export function IntroTimelineSplash({ onComplete }: IntroTimelineSplashProps) {
           <div className="relative mt-5 flex flex-col items-center justify-center">
             <motion.div
               animate={{
-                scale: isFocused2035 ? [1, 1.07, 1] : 1,
+                scale: isFocused2035 ? 1.04 : 1,
               }}
-              transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-              className={`font-display text-7xl sm:text-[116px] lg:text-[136px] font-semibold tracking-tight leading-none font-mono-tabular transition-colors duration-300 ${
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+              style={
                 isFocused2035
-                  ? 'text-white drop-shadow-[0_0_48px_rgba(16,185,129,0.35)]'
-                  : 'text-[#d1d5db]'
+                  ? { textShadow: '0 0 36px rgba(16,185,129,0.35)' }
+                  : undefined
+              }
+              className={`font-display text-7xl sm:text-[116px] lg:text-[136px] font-semibold tracking-tight leading-none font-mono-tabular transition-colors duration-300 ${
+                isFocused2035 ? 'text-white' : 'text-[#d1d5db]'
               }`}
             >
               {displayYear}
@@ -275,9 +276,9 @@ export function IntroTimelineSplash({ onComplete }: IntroTimelineSplashProps) {
               <motion.div
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ duration: 2.9, ease: [0.22, 1, 0.36, 1] }}
+                transition={{ duration: 1.95, ease: [0.22, 1, 0.36, 1] }}
                 style={{ transformOrigin: 'left center' }}
-                className="absolute left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-white/50 via-emerald-400 to-emerald-300 shadow-[0_0_18px_rgba(16,185,129,0.75)]"
+                className="absolute left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-white/50 via-emerald-400 to-emerald-300 shadow-[0_0_16px_rgba(16,185,129,0.7)]"
               />
 
               {/* Milestone Nodes */}
