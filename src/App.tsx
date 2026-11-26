@@ -1,6 +1,5 @@
 import { MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CustomCircleCursor } from './components/CustomCircleCursor';
 import { DistributionSection } from './components/DistributionSection';
 import { Hero3DStage } from './components/Hero3DStage';
 import { HeroHookSection } from './components/HeroHookSection';
@@ -22,10 +21,22 @@ import {
   type SelectionPayload,
 } from './three/SinusSceneManager';
 
+function getInitialSurveyCode(): string | null {
+  if (typeof window === 'undefined') return null;
+  const raw = new URLSearchParams(window.location.search).get('umfrage');
+  if (!raw) return null;
+  const cleaned = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return cleaned.length === 6 ? cleaned : null;
+}
+
 function shouldSkipIntroOnLoad(): boolean {
   if (typeof window === 'undefined') return true;
   const params = new URLSearchParams(window.location.search);
-  return params.get('autostart') === '1' || params.has('milieu');
+  return (
+    params.get('autostart') === '1' ||
+    params.has('milieu') ||
+    params.has('umfrage')
+  );
 }
 
 export default function App() {
@@ -33,6 +44,7 @@ export default function App() {
   const sceneRef = useRef<SinusSceneManager | null>(null);
   const userMarkerLabelRef = useRef<HTMLDivElement | null>(null);
 
+  const [initialSurveyCode] = useState<string | null>(() => getInitialSurveyCode());
   const [showIntro, setShowIntro] = useState<boolean>(() => !shouldSkipIntroOnLoad());
   const [mode, setMode] = useState<ModelMode>('2035');
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
@@ -147,6 +159,10 @@ export default function App() {
       window.requestAnimationFrame(() => {
         document.getElementById('modell-3d')?.scrollIntoView({ behavior: 'auto' });
       });
+    } else if (params.has('umfrage')) {
+      window.requestAnimationFrame(() => {
+        document.getElementById('selbsttest')?.scrollIntoView({ behavior: 'auto' });
+      });
     }
 
     return () => {
@@ -227,7 +243,6 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative min-h-screen bg-[#040406] text-[#f7f8f8]">
-        <CustomCircleCursor />
         {showIntro && (
           <IntroTimelineSplash onComplete={() => setShowIntro(false)} />
         )}
@@ -276,7 +291,10 @@ export default function App() {
 
             <DistributionSection />
 
-            <SelfTestSection onViewResultIn3D={handleViewSelfTestResultIn3D} />
+            <SelfTestSection
+              onViewResultIn3D={handleViewSelfTestResultIn3D}
+              initialSurveyCode={initialSurveyCode}
+            />
           </main>
 
           <footer className="border-t border-white/[0.06] py-10">

@@ -23,6 +23,7 @@ import {
 import { getMilieuIcon } from '../utils/milieuIcons';
 
 type MatrixFocus = 'both' | '2026' | '2035';
+type DetailTab = 'calculation' | 'comparison';
 
 const ARGUMENT_ICONS = [Layers, MoveVertical, GitCompareArrows];
 
@@ -71,6 +72,7 @@ const SHARE_SEGMENTS = [...MILIEUS].sort((a, b) => b.share2035 - a.share2035);
 
 export function TransformationSection() {
   const [focus, setFocus] = useState<MatrixFocus>('both');
+  const [activeTab, setActiveTab] = useState<DetailTab>('calculation');
 
   return (
     <section
@@ -87,7 +89,7 @@ export function TransformationSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              Soziologische Analyse · Strukturwandel 2026 → 2035
+              03 · Soziologische Analyse · Strukturwandel 2026 → 2035
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
               Vom 2D-Überlappungsmodell zur schwebenden 3D-Polarisierung
@@ -144,15 +146,51 @@ export function TransformationSection() {
           })}
         </motion.div>
 
-        {/* Infobox directly underneath the 3 core arguments */}
-        <motion.div
-          initial={{ opacity: 0, y: 26, scale: 0.985 }}
-          whileInView={{ opacity: 1, y: 0, scale: 1 }}
-          viewport={{ once: true, amount: 0.1 }}
-          transition={{ duration: 0.6, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-          data-testid="calculation-infobox"
-          className="linear-fade-window mt-8 overflow-hidden rounded-3xl p-7 sm:p-9"
-        >
+        {/* Clean Tabbed Deep-Dive Selector for Calculation vs Comparison */}
+        <div className="mt-10 flex justify-center sm:justify-start">
+          <div
+            role="tablist"
+            aria-label="Analyse-Ansicht wählen"
+            className="inline-flex items-center gap-1 rounded-full border border-white/[0.1] bg-[#0b0d11] p-1"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'calculation'}
+              onClick={() => setActiveTab('calculation')}
+              className={`rounded-full px-4 py-2 text-xs sm:text-[13px] font-medium transition-colors cursor-pointer ${
+                activeTab === 'calculation'
+                  ? 'bg-[#f7f8f8] text-[#08090a] font-semibold'
+                  : 'text-[#9ea4b0] hover:text-white'
+              }`}
+            >
+              Rechenweg 2035 (100 %)
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'comparison'}
+              onClick={() => setActiveTab('comparison')}
+              className={`rounded-full px-4 py-2 text-xs sm:text-[13px] font-medium transition-colors cursor-pointer ${
+                activeTab === 'comparison'
+                  ? 'bg-[#f7f8f8] text-[#08090a] font-semibold'
+                  : 'text-[#9ea4b0] hover:text-white'
+              }`}
+            >
+              Systemvergleich 2026 vs. 2035
+            </button>
+          </div>
+        </div>
+
+        {/* Infobox directly underneath when Calculation tab is active */}
+        {activeTab === 'calculation' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            data-testid="calculation-infobox"
+            className="linear-fade-window mt-5 overflow-hidden rounded-3xl p-7 sm:p-9"
+          >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-[#9ea4b0]">
@@ -279,17 +317,18 @@ export function TransformationSection() {
                 </motion.div>
               );
             })}
-          </div>
-        </motion.div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Integrated Linear-style interactive comparison matrix */}
-        <motion.div
-          initial={{ opacity: 0, y: 26, scale: 0.985 }}
-          whileInView={{ opacity: 1, y: 0, scale: 1 }}
-          viewport={{ once: true, amount: 0.1 }}
-          transition={{ duration: 0.6, delay: 0.06, ease: [0.16, 1, 0.3, 1] }}
-          className="linear-fade-window mt-8 overflow-hidden rounded-3xl"
-        >
+        {activeTab === 'comparison' && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="linear-fade-window mt-5 overflow-hidden rounded-3xl"
+          >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.08] px-6 py-6 sm:px-8">
             <div>
               <h3 className="font-display text-xl font-semibold text-[#f7f8f8]">
@@ -439,6 +478,7 @@ export function TransformationSection() {
             </table>
           </div>
         </motion.div>
+        )}
       </div>
     </section>
   );

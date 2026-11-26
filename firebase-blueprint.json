@@ -1,0 +1,104 @@
+{
+  "entities": {
+    "SurveySession": {
+      "title": "Live Survey Session",
+      "description": "Classroom or group live survey room for the 2035 SINUS milieu self-test.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[A-Z0-9]{6}$",
+          "description": "6-character uppercase alphanumeric room join code."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Short label for the live survey session."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active"],
+          "description": "Survey session status."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the survey session was created."
+        }
+      },
+      "required": ["code", "title", "status", "createdAt"]
+    },
+    "SurveyResponse": {
+      "title": "Live Survey Response",
+      "description": "Anonymous participant milieu result submitted to a live survey session.",
+      "type": "object",
+      "properties": {
+        "surveyCode": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[A-Z0-9]{6}$",
+          "description": "Parent live survey code."
+        },
+        "clientId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Random anonymous device identifier."
+        },
+        "milieuId": {
+          "type": "string",
+          "enum": [
+            "avantgarde",
+            "konservativ",
+            "digital_adaptiv",
+            "erodierte_mitte",
+            "senioren",
+            "prekariat"
+          ],
+          "description": "Top matching 2035 SINUS milieu ID."
+        },
+        "uX": {
+          "type": "number",
+          "description": "Normalized X coordinate (0..100)."
+        },
+        "uY": {
+          "type": "number",
+          "description": "Normalized Y coordinate (0..100)."
+        },
+        "uZ": {
+          "type": "number",
+          "description": "Normalized Z coordinate (0..100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the response was recorded."
+        }
+      },
+      "required": [
+        "surveyCode",
+        "clientId",
+        "milieuId",
+        "uX",
+        "uY",
+        "uZ",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/surveys/{surveyCode}": {
+      "schema": { "$ref": "#/entities/SurveySession" },
+      "description": "Live survey sessions addressable only by their 6-character code."
+    },
+    "/surveys/{surveyCode}/responses/{responseId}": {
+      "schema": { "$ref": "#/entities/SurveyResponse" },
+      "description": "Anonymous participant milieu results for a given live survey session."
+    }
+  }
+}

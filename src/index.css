@@ -137,15 +137,3 @@
   background: rgba(255, 255, 255, 0.34);
 }
 
-/* Circular custom mouse cursor (activated dynamically on non-touch mouse movement) */
-html.has-custom-cursor,
-html.has-custom-cursor body,
-html.has-custom-cursor *,
-html.has-custom-cursor *::before,
-html.has-custom-cursor *::after,
-html.has-custom-cursor canvas,
-html.has-custom-cursor a,
-html.has-custom-cursor button {
-  cursor: none !important;
-}
-

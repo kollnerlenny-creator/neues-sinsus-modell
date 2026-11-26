@@ -1,5 +1,6 @@
 import {
   ArrowRight,
+  ChevronDown,
   Cpu,
   Flame,
   GitMerge,
@@ -9,8 +10,8 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import { motion, useScroll, useSpring } from 'motion/react';
-import { useRef } from 'react';
+import { AnimatePresence, motion, useScroll, useSpring } from 'motion/react';
+import { useRef, useState } from 'react';
 import { MILIEUS } from '../data/milieus';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
@@ -120,6 +121,9 @@ const CAUSAL_SHIFTS: CausalShiftItem[] = [
 const SORTED_2035 = [...MILIEUS].sort((a, b) => b.share2035 - a.share2035);
 
 export function DistributionSection() {
+  const [expandedShifts, setExpandedShifts] = useState<Record<string, boolean>>({
+    '01': true,
+  });
   const ledgerRef = useRef<HTMLDivElement | null>(null);
   const { scrollYProgress: ledgerProgress } = useScroll({
     target: ledgerRef,
@@ -129,6 +133,10 @@ export function DistributionSection() {
     stiffness: 180,
     damping: 28,
   });
+
+  const toggleShift = (num: string) => {
+    setExpandedShifts((prev) => ({ ...prev, [num]: !prev[num] }));
+  };
 
   return (
     <section
@@ -145,7 +153,7 @@ export function DistributionSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              Mathematische &amp; Soziologische Logik · Kausalketten 2026 → 2035
+              04 · Mathematische &amp; Soziologische Logik · Kausalketten 2026 → 2035
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
               Wie kommt die Prozentverteilung 2035 zustande?
@@ -323,70 +331,108 @@ export function DistributionSection() {
                   </div>
                 </div>
 
-                {/* Right clean sociological & mathematical derivation */}
-                <div className="lg:col-span-7">
-                  {item.subGroups ? (
-                    <div className="space-y-6">
-                      {item.subGroups.map((sg) => {
-                        const SgIcon = getMilieuIcon(sg.milieuId);
-                        return (
-                          <div
-                            key={sg.name}
-                            className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5"
-                          >
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="flex items-center gap-2.5">
-                                <SgIcon
-                                  className="h-4 w-4 shrink-0"
-                                  style={{ color: sg.color }}
-                                  aria-hidden="true"
-                                />
-                                <span className="text-base font-semibold text-[#f7f8f8]">
-                                  {sg.name}
-                                </span>
-                              </div>
-                              <span
-                                className="font-mono-tabular text-base font-semibold"
-                                style={{ color: sg.color }}
-                              >
-                                {sg.share}
-                              </span>
-                            </div>
-                            <p className="mt-2 text-[15px] leading-relaxed text-[#cbd5e1]">
-                              {sg.text}
-                            </p>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="space-y-5">
-                      <div>
-                        <div className="flex items-center gap-2 text-sm font-semibold text-[#e2e8f0]">
-                          <ArrowRight
-                            className="h-4 w-4 text-[#8a8f98]"
-                            aria-hidden="true"
-                          />
-                          <span>Ausgangslage 2026</span>
-                        </div>
-                        <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#b4bac4]">
-                          {item.baseline2026}
-                        </p>
-                      </div>
+                {/* Right clean sociological & mathematical derivation (collapsible for clarity) */}
+                <div className="lg:col-span-7 flex flex-col justify-center">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-medium text-[#8a8f98]">
+                      {item.subGroups
+                        ? '3 Gruppen-Verschmelzungen im Detail'
+                        : 'Ausgangslage 2026 & Kausalkette 2035'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => toggleShift(item.number)}
+                      aria-expanded={Boolean(expandedShifts[item.number])}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-white/[0.03] px-3 py-1 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white cursor-pointer transition-colors"
+                    >
+                      <span>
+                        {expandedShifts[item.number] ? 'Einklappen' : 'Begründung zeigen'}
+                      </span>
+                      <ChevronDown
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                          expandedShifts[item.number] ? 'rotate-180' : ''
+                        }`}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </div>
 
-                      <div className="border-t border-white/[0.08] pt-5">
-                        <div
-                          className="text-sm font-semibold"
-                          style={{ color: item.accentColor }}
-                        >
-                          {item.developmentLabel}
+                  <AnimatePresence initial={false}>
+                    {expandedShifts[item.number] && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pt-4">
+                          {item.subGroups ? (
+                            <div className="space-y-4">
+                              {item.subGroups.map((sg) => {
+                                const SgIcon = getMilieuIcon(sg.milieuId);
+                                return (
+                                  <div
+                                    key={sg.name}
+                                    className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <div className="flex items-center gap-2.5">
+                                        <SgIcon
+                                          className="h-4 w-4 shrink-0"
+                                          style={{ color: sg.color }}
+                                          aria-hidden="true"
+                                        />
+                                        <span className="text-base font-semibold text-[#f7f8f8]">
+                                          {sg.name}
+                                        </span>
+                                      </div>
+                                      <span
+                                        className="font-mono-tabular text-base font-semibold"
+                                        style={{ color: sg.color }}
+                                      >
+                                        {sg.share}
+                                      </span>
+                                    </div>
+                                    <p className="mt-2 text-[15px] leading-relaxed text-[#cbd5e1]">
+                                      {sg.text}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="space-y-4">
+                              <div>
+                                <div className="flex items-center gap-2 text-sm font-semibold text-[#e2e8f0]">
+                                  <ArrowRight
+                                    className="h-4 w-4 text-[#8a8f98]"
+                                    aria-hidden="true"
+                                  />
+                                  <span>Ausgangslage 2026</span>
+                                </div>
+                                <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#b4bac4]">
+                                  {item.baseline2026}
+                                </p>
+                              </div>
+
+                              <div className="border-t border-white/[0.08] pt-4">
+                                <div
+                                  className="text-sm font-semibold"
+                                  style={{ color: item.accentColor }}
+                                >
+                                  {item.developmentLabel}
+                                </div>
+                                <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#d1d5db]">
+                                  {item.development2035}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#d1d5db]">
-                          {item.development2035}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </motion.div>
             );

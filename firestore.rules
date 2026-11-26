@@ -1,0 +1,91 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidSurveyCode(code) {
+      return code is string
+        && code.size() == 6
+        && code.matches('^[A-Z0-9]{6}$');
+    }
+
+    function isValidClientId(id) {
+      return id is string
+        && id.size() >= 8
+        && id.size() <= 64
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSurveySession(data, surveyCode) {
+      return data.keys().hasAll(['code', 'title', 'status', 'createdAt'])
+        && data.keys().hasOnly(['code', 'title', 'status', 'createdAt'])
+        && data.code is string
+        && data.code.size() == 6
+        && data.code == surveyCode
+        && data.code.matches('^[A-Z0-9]{6}$')
+        && data.title is string
+        && data.title.size() >= 1
+        && data.title.size() <= 80
+        && data.status is string
+        && data.status == 'active'
+        && data.createdAt == request.time;
+    }
+
+    function isValidSurveyResponse(data, surveyCode, responseId) {
+      return data.keys().hasAll(['surveyCode', 'clientId', 'milieuId', 'uX', 'uY', 'uZ', 'createdAt'])
+        && data.keys().hasOnly(['surveyCode', 'clientId', 'milieuId', 'uX', 'uY', 'uZ', 'createdAt'])
+        && data.surveyCode is string
+        && data.surveyCode.size() == 6
+        && data.surveyCode == surveyCode
+        && data.surveyCode.matches('^[A-Z0-9]{6}$')
+        && data.clientId is string
+        && isValidClientId(data.clientId)
+        && data.clientId == responseId
+        && data.milieuId is string
+        && data.milieuId in [
+          'avantgarde',
+          'konservativ',
+          'digital_adaptiv',
+          'erodierte_mitte',
+          'senioren',
+          'prekariat'
+        ]
+        && data.uX is number && data.uX >= 0 && data.uX <= 100
+        && data.uY is number && data.uY >= 0 && data.uY <= 100
+        && data.uZ is number && data.uZ >= 0 && data.uZ <= 100
+        && data.createdAt == request.time;
+    }
+
+    match /surveys/{surveyCode} {
+      allow get: if isValidSurveyCode(surveyCode);
+      allow list: if false;
+      allow create: if isValidSurveyCode(surveyCode)
+        && isValidSurveySession(incoming(), surveyCode);
+      allow update, delete: if false;
+
+      match /responses/{responseId} {
+        allow get: if isValidSurveyCode(surveyCode)
+          && isValidClientId(responseId);
+        allow list: if isValidSurveyCode(surveyCode)
+          && existing().surveyCode == surveyCode;
+        allow create: if isValidSurveyCode(surveyCode)
+          && isValidClientId(responseId)
+          && isValidSurveyResponse(incoming(), surveyCode, responseId)
+          && get(/databases/$(database)/documents/surveys/$(surveyCode)).data.status == 'active';
+        allow update, delete: if false;
+      }
+    }
+  }
+}

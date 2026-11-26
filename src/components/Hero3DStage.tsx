@@ -157,7 +157,7 @@ export function Hero3DStage({
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              Interaktives Raummodell · 2026 vs. 2035
+              01 · Interaktives Raummodell · 2026 vs. 2035
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-5xl lg:text-[48px] font-semibold tracking-tight text-[#f7f8f8] leading-[1.08] text-balance">
               Das schwebende 3D-SINUS-Modell

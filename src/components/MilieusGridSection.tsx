@@ -15,10 +15,19 @@ interface MilieusGridSectionProps {
   onFocusIn3D: (id: MilieuId) => void;
 }
 
+type MilieuFilter = 'all' | 'high' | 'pressure';
+
 export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
+  const [filter, setFilter] = useState<MilieuFilter>('all');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
-  const allExpanded = MILIEUS.every((m) => Boolean(expandedIds[m.id]));
+  const visibleMilieus = MILIEUS.filter((m) => {
+    if (filter === 'high') return m.resilienceScore >= 50;
+    if (filter === 'pressure') return m.resilienceScore < 50;
+    return true;
+  });
+
+  const allExpanded = visibleMilieus.every((m) => Boolean(expandedIds[m.id]));
 
   const toggleCard = (id: MilieuId) => {
     setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -29,7 +38,7 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
       setExpandedIds({});
     } else {
       const next: Record<string, boolean> = {};
-      for (const m of MILIEUS) next[m.id] = true;
+      for (const m of visibleMilieus) next[m.id] = true;
       setExpandedIds(next);
     }
   };
@@ -49,15 +58,14 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
         >
           <div className="max-w-3xl">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              Strukturprofil 2035 · Sechs verdichtete Lebenswelten
+              02 · Strukturprofil 2035 · Sechs verdichtete Lebenswelten
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
               Die 6 Milieus im Detail
             </h2>
             <p className="mt-3.5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-              Jede Lebenswelt entspricht einer schwebenden 3D-Insel im Raummodell. Die
-              Flughöhe (Z-Achse) zeigt, wie stark ein Milieu durch Bildung, Eigentum
-              und KI-Kompetenz gegenüber Strukturkrisen geschützt ist.
+              Kompakte Übersicht aller sechs Zukunfts-Blöcke nach Bevölkerungsanteil
+              und Krisenresilienz – vertiefende Profile lassen sich gezielt einblenden.
             </p>
           </div>
 
@@ -71,8 +79,34 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
           </button>
         </motion.div>
 
-        <div className="mt-12 grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {MILIEUS.map((m, idx) => {
+        {/* Clean Resilience Filter Bar */}
+        <div
+          role="group"
+          aria-label="Milieus nach Resilienz filtern"
+          className="mt-7 inline-flex flex-wrap items-center gap-1.5 rounded-full border border-white/[0.09] bg-[#0b0d11] p-1"
+        >
+          {[
+            { id: 'all', label: 'Alle (6)' },
+            { id: 'high', label: 'Hohe Resilienz (Z ≥ 50)' },
+            { id: 'pressure', label: 'Unter Druck (Z < 50)' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setFilter(tab.id as MilieuFilter)}
+              className={`rounded-full px-3.5 py-1.5 text-xs sm:text-[13px] font-medium transition-colors cursor-pointer ${
+                filter === tab.id
+                  ? 'bg-[#f7f8f8] text-[#08090a] font-semibold'
+                  : 'text-[#9ea4b0] hover:text-white'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {visibleMilieus.map((m, idx) => {
             const isExpanded = Boolean(expandedIds[m.id]);
             const Icon = getMilieuIcon(m.id);
 
@@ -155,12 +189,12 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                     />
                   </div>
 
-                  <p className="mt-5 text-[15px] sm:text-base leading-relaxed text-[#cbd5e1]">
-                    {m.detailedProfile}
+                  <p className="mt-5 text-[15px] sm:text-base leading-relaxed text-[#e2e8f0]">
+                    {m.causalChainSummary}
                   </p>
 
                   {/* Clean Origin Note */}
-                  <div className="mt-5 flex items-start gap-2.5 text-sm leading-relaxed text-[#9ea4b0]">
+                  <div className="mt-4 flex items-start gap-2.5 text-sm leading-relaxed text-[#9ea4b0]">
                     <GitBranch
                       className="mt-0.5 h-4 w-4 shrink-0 text-[#62666d]"
                       aria-hidden="true"
@@ -184,6 +218,10 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                         className="overflow-hidden"
                       >
                         <div className="mt-5 space-y-4 border-t border-white/[0.08] pt-5">
+                          <p className="text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
+                            {m.detailedProfile}
+                          </p>
+
                           <div>
                             <div className="flex items-center gap-2 text-sm font-semibold text-[#f7f8f8]">
                               <ShieldCheck

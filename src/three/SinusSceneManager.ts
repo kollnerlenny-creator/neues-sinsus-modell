@@ -199,6 +199,7 @@ export class SinusSceneManager {
     this.renderer.domElement.style.width = '100%';
     this.renderer.domElement.style.height = '100%';
     this.renderer.domElement.style.touchAction = 'none';
+    this.renderer.domElement.style.cursor = 'grab';
     this.container.appendChild(this.renderer.domElement);
 
     const maxAnisotropy = this.renderer.capabilities.getMaxAnisotropy();
@@ -534,6 +535,7 @@ export class SinusSceneManager {
   };
 
   private onPointerLeave = (): void => {
+    this.renderer.domElement.style.cursor = 'grab';
     this.container.removeAttribute('data-hover-3d');
     this.container.removeAttribute('data-canvas-grabbing');
   };
@@ -563,10 +565,12 @@ export class SinusSceneManager {
   private onPointerDown = (e: PointerEvent): void => {
     this.pointerDownPos.x = e.clientX;
     this.pointerDownPos.y = e.clientY;
+    this.renderer.domElement.style.cursor = 'grabbing';
     this.container.setAttribute('data-canvas-grabbing', 'true');
   };
 
   private onPointerUp = (e: PointerEvent): void => {
+    this.renderer.domElement.style.cursor = this.hovered ? 'pointer' : 'grab';
     this.container.removeAttribute('data-canvas-grabbing');
     const dist = Math.hypot(
       e.clientX - this.pointerDownPos.x,
@@ -625,11 +629,7 @@ export class SinusSceneManager {
       for (const [id, rig] of this.classicRigs) {
         rig.isHovered = nextHover?.kind === '2026' && nextHover.id === id;
       }
-      if (document.documentElement.classList.contains('has-custom-cursor')) {
-        this.renderer.domElement.style.cursor = 'none';
-      } else {
-        this.renderer.domElement.style.cursor = nextHover ? 'pointer' : 'grab';
-      }
+      this.renderer.domElement.style.cursor = nextHover ? 'pointer' : 'grab';
       this.container.setAttribute('data-hover-3d', nextHover ? 'true' : 'false');
       this.callbacks.onHover(nextHover);
       if (this.isSoftwareGl) this.requestRender();
