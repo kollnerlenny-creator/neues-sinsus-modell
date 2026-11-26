@@ -15,6 +15,32 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string
+        && id.size() >= 1
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email_verified == true
+          && request.auth.token.email == 'm91681001@gmail.com') ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isNonEmptyBoundedString(val, maxLen) {
+      return val is string && val.size() >= 1 && val.size() <= maxLen;
+    }
+
+    // -----------------------------------------------------------------------
+    // Existing Live Survey Collections (must remain preserved & unmodified)
+    // -----------------------------------------------------------------------
     function isValidSurveyCode(code) {
       return code is string
         && code.size() == 6
@@ -86,6 +112,264 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/surveys/$(surveyCode)).data.status == 'active';
         allow update, delete: if false;
       }
+    }
+
+    // -----------------------------------------------------------------------
+    // Admin Whitelist (read own record only; never writable from client SDK)
+    // -----------------------------------------------------------------------
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && request.auth.uid == adminUid;
+      allow list, create, update, delete: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Editable CMS Site Content (/siteContent/{sectionId})
+    // -----------------------------------------------------------------------
+    function isValidContentSectionId(sectionId) {
+      return isValidId(sectionId) && sectionId in [
+        'meta',
+        'milieus_2035',
+        'milieus_2026',
+        'axes_rifts',
+        'transformation',
+        'distribution',
+        'self_test'
+      ];
+    }
+
+    function hasValidAuditEnvelope(data, sectionId) {
+      return data.sectionId is string
+        && data.sectionId.size() <= 32
+        && data.sectionId == sectionId
+        && data.updatedAt == request.time
+        && data.updatedBy is string
+        && isValidId(data.updatedBy)
+        && data.updatedBy == request.auth.uid;
+    }
+
+    function isValidMetaSection(data, sectionId) {
+      return data.keys().hasAll([
+          'sectionId', 'navBrand', 'navLinks', 'navCtaLabel',
+          'footerLeft', 'footerRight', 'heroEyebrow', 'heroHeadline', 'heroLead',
+          'heroExploreBtn', 'heroSelftestBtn', 'heroShiftsBarTitle', 'heroShiftsBarTag',
+          'heroScrollCue', 'heroShifts', 'stageEyebrow', 'stageHeadline', 'stageDescription',
+          'stageMode2026Label', 'stageMode2035Label', 'stageAxisKeyX', 'stageAxisKeyY',
+          'stageAxisKeyZ', 'gridEyebrow', 'gridHeadline', 'gridDescription',
+          'updatedAt', 'updatedBy'
+        ])
+        && data.keys().hasOnly([
+          'sectionId', 'navBrand', 'navLinks', 'navCtaLabel',
+          'footerLeft', 'footerRight', 'heroEyebrow', 'heroHeadline', 'heroLead',
+          'heroExploreBtn', 'heroSelftestBtn', 'heroShiftsBarTitle', 'heroShiftsBarTag',
+          'heroScrollCue', 'heroShifts', 'stageEyebrow', 'stageHeadline', 'stageDescription',
+          'stageMode2026Label', 'stageMode2035Label', 'stageAxisKeyX', 'stageAxisKeyY',
+          'stageAxisKeyZ', 'gridEyebrow', 'gridHeadline', 'gridDescription',
+          'updatedAt', 'updatedBy'
+        ])
+        && hasValidAuditEnvelope(data, sectionId)
+        && isNonEmptyBoundedString(data.navBrand, 60)
+        && data.navLinks is list && data.navLinks.size() >= 1 && data.navLinks.size() <= 8
+        && data.navLinks[0] is map
+        && isNonEmptyBoundedString(data.navLinks[0].label, 60)
+        && isNonEmptyBoundedString(data.navLinks[0].href, 60)
+        && isNonEmptyBoundedString(data.navCtaLabel, 60)
+        && isNonEmptyBoundedString(data.footerLeft, 180)
+        && isNonEmptyBoundedString(data.footerRight, 180)
+        && isNonEmptyBoundedString(data.heroEyebrow, 180)
+        && isNonEmptyBoundedString(data.heroHeadline, 240)
+        && isNonEmptyBoundedString(data.heroLead, 600)
+        && isNonEmptyBoundedString(data.heroExploreBtn, 80)
+        && isNonEmptyBoundedString(data.heroSelftestBtn, 80)
+        && isNonEmptyBoundedString(data.heroShiftsBarTitle, 140)
+        && isNonEmptyBoundedString(data.heroShiftsBarTag, 80)
+        && isNonEmptyBoundedString(data.heroScrollCue, 140)
+        && data.heroShifts is list && data.heroShifts.size() >= 1 && data.heroShifts.size() <= 6
+        && data.heroShifts[0] is map
+        && isNonEmptyBoundedString(data.heroShifts[0].title, 120)
+        && isNonEmptyBoundedString(data.stageEyebrow, 180)
+        && isNonEmptyBoundedString(data.stageHeadline, 240)
+        && isNonEmptyBoundedString(data.stageDescription, 600)
+        && isNonEmptyBoundedString(data.stageMode2026Label, 80)
+        && isNonEmptyBoundedString(data.stageMode2035Label, 80)
+        && isNonEmptyBoundedString(data.stageAxisKeyX, 140)
+        && isNonEmptyBoundedString(data.stageAxisKeyY, 140)
+        && isNonEmptyBoundedString(data.stageAxisKeyZ, 140)
+        && isNonEmptyBoundedString(data.gridEyebrow, 180)
+        && isNonEmptyBoundedString(data.gridHeadline, 240)
+        && isNonEmptyBoundedString(data.gridDescription, 600);
+    }
+
+    function isValidMilieus2035Section(data, sectionId) {
+      return data.keys().hasAll(['sectionId', 'milieus', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['sectionId', 'milieus', 'updatedAt', 'updatedBy'])
+        && hasValidAuditEnvelope(data, sectionId)
+        && data.milieus is list
+        && data.milieus.size() == 6
+        && data.milieus[0] is map
+        && isNonEmptyBoundedString(data.milieus[0].id, 40)
+        && isNonEmptyBoundedString(data.milieus[0].name, 160)
+        && isNonEmptyBoundedString(data.milieus[0].shortName, 80)
+        && data.milieus[0].share2035 is number
+        && data.milieus[0].resilienceScore is number;
+    }
+
+    function isValidMilieus2026Section(data, sectionId) {
+      return data.keys().hasAll(['sectionId', 'classicMilieus', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['sectionId', 'classicMilieus', 'updatedAt', 'updatedBy'])
+        && hasValidAuditEnvelope(data, sectionId)
+        && data.classicMilieus is list
+        && data.classicMilieus.size() == 10
+        && data.classicMilieus[0] is map
+        && isNonEmptyBoundedString(data.classicMilieus[0].id, 64)
+        && isNonEmptyBoundedString(data.classicMilieus[0].name, 160)
+        && data.classicMilieus[0].share2026 is number;
+    }
+
+    function isValidAxesRiftsSection(data, sectionId) {
+      return data.keys().hasAll(['sectionId', 'axisLabels', 'riftLines', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['sectionId', 'axisLabels', 'riftLines', 'updatedAt', 'updatedBy'])
+        && hasValidAuditEnvelope(data, sectionId)
+        && data.axisLabels is list
+        && data.axisLabels.size() >= 1 && data.axisLabels.size() <= 12
+        && data.axisLabels[0] is map
+        && isNonEmptyBoundedString(data.axisLabels[0].text, 120)
+        && data.riftLines is list
+        && data.riftLines.size() >= 1 && data.riftLines.size() <= 12
+        && data.riftLines[0] is map
+        && isNonEmptyBoundedString(data.riftLines[0].label, 120);
+    }
+
+    function isValidTransformationSection(data, sectionId) {
+      return data.keys().hasAll([
+          'sectionId', 'eyebrow', 'headline', 'description', 'arguments',
+          'calcEyebrow', 'calcHeadline', 'calcSteps', 'compHeadline',
+          'compDescription', 'comparisonRows', 'updatedAt', 'updatedBy'
+        ])
+        && data.keys().hasOnly([
+          'sectionId', 'eyebrow', 'headline', 'description', 'arguments',
+          'calcEyebrow', 'calcHeadline', 'calcSteps', 'compHeadline',
+          'compDescription', 'comparisonRows', 'updatedAt', 'updatedBy'
+        ])
+        && hasValidAuditEnvelope(data, sectionId)
+        && isNonEmptyBoundedString(data.eyebrow, 180)
+        && isNonEmptyBoundedString(data.headline, 240)
+        && isNonEmptyBoundedString(data.description, 600)
+        && data.arguments is list && data.arguments.size() >= 1 && data.arguments.size() <= 6
+        && data.arguments[0] is map
+        && isNonEmptyBoundedString(data.arguments[0].title, 200)
+        && isNonEmptyBoundedString(data.calcEyebrow, 180)
+        && isNonEmptyBoundedString(data.calcHeadline, 240)
+        && data.calcSteps is list && data.calcSteps.size() >= 1 && data.calcSteps.size() <= 8
+        && data.calcSteps[0] is map
+        && isNonEmptyBoundedString(data.calcSteps[0].title, 160)
+        && isNonEmptyBoundedString(data.compHeadline, 240)
+        && isNonEmptyBoundedString(data.compDescription, 400)
+        && data.comparisonRows is list && data.comparisonRows.size() >= 1 && data.comparisonRows.size() <= 12
+        && data.comparisonRows[0] is map
+        && isNonEmptyBoundedString(data.comparisonRows[0].criterion, 160);
+    }
+
+    function isValidDistributionSection(data, sectionId) {
+      return data.keys().hasAll([
+          'sectionId', 'eyebrow', 'headline', 'description',
+          'ledgerFooterLabel', 'causalShifts', 'updatedAt', 'updatedBy'
+        ])
+        && data.keys().hasOnly([
+          'sectionId', 'eyebrow', 'headline', 'description',
+          'ledgerFooterLabel', 'causalShifts', 'updatedAt', 'updatedBy'
+        ])
+        && hasValidAuditEnvelope(data, sectionId)
+        && isNonEmptyBoundedString(data.eyebrow, 180)
+        && isNonEmptyBoundedString(data.headline, 240)
+        && isNonEmptyBoundedString(data.description, 600)
+        && isNonEmptyBoundedString(data.ledgerFooterLabel, 180)
+        && data.causalShifts is list && data.causalShifts.size() >= 1 && data.causalShifts.size() <= 8
+        && data.causalShifts[0] is map
+        && isNonEmptyBoundedString(data.causalShifts[0].question, 240);
+    }
+
+    function isValidSelfTestSection(data, sectionId) {
+      return data.keys().hasAll([
+          'sectionId', 'eyebrow', 'headline', 'description',
+          'scaleOptions', 'questions', 'idealCoords', 'secondSentences',
+          'updatedAt', 'updatedBy'
+        ])
+        && data.keys().hasOnly([
+          'sectionId', 'eyebrow', 'headline', 'description',
+          'scaleOptions', 'questions', 'idealCoords', 'secondSentences',
+          'updatedAt', 'updatedBy'
+        ])
+        && hasValidAuditEnvelope(data, sectionId)
+        && isNonEmptyBoundedString(data.eyebrow, 180)
+        && isNonEmptyBoundedString(data.headline, 240)
+        && isNonEmptyBoundedString(data.description, 600)
+        && data.scaleOptions is list && data.scaleOptions.size() == 5
+        && data.scaleOptions[0] is map
+        && isNonEmptyBoundedString(data.scaleOptions[0].label, 80)
+        && data.questions is list && data.questions.size() == 10
+        && data.questions[0] is map
+        && isNonEmptyBoundedString(data.questions[0].text, 500)
+        && data.idealCoords is map
+        && data.idealCoords.keys().hasAll(['avantgarde', 'konservativ', 'digital_adaptiv', 'erodierte_mitte', 'senioren', 'prekariat'])
+        && data.idealCoords.keys().hasOnly(['avantgarde', 'konservativ', 'digital_adaptiv', 'erodierte_mitte', 'senioren', 'prekariat'])
+        && data.secondSentences is map
+        && data.secondSentences.keys().hasAll(['avantgarde', 'konservativ', 'digital_adaptiv', 'erodierte_mitte', 'senioren', 'prekariat'])
+        && data.secondSentences.keys().hasOnly(['avantgarde', 'konservativ', 'digital_adaptiv', 'erodierte_mitte', 'senioren', 'prekariat']);
+    }
+
+    function isValidSiteContentSection(data, sectionId) {
+      return (sectionId == 'meta' && isValidMetaSection(data, sectionId))
+        || (sectionId == 'milieus_2035' && isValidMilieus2035Section(data, sectionId))
+        || (sectionId == 'milieus_2026' && isValidMilieus2026Section(data, sectionId))
+        || (sectionId == 'axes_rifts' && isValidAxesRiftsSection(data, sectionId))
+        || (sectionId == 'transformation' && isValidTransformationSection(data, sectionId))
+        || (sectionId == 'distribution' && isValidDistributionSection(data, sectionId))
+        || (sectionId == 'self_test' && isValidSelfTestSection(data, sectionId));
+    }
+
+    match /siteContent/{sectionId} {
+      allow get: if isValidContentSectionId(sectionId);
+      allow list: if false;
+      allow create: if isValidContentSectionId(sectionId)
+        && isAdmin()
+        && isValidSiteContentSection(incoming(), sectionId);
+      allow update: if isValidContentSectionId(sectionId)
+        && isAdmin()
+        && isValidSiteContentSection(incoming(), sectionId)
+        && incoming().sectionId == existing().sectionId
+        && (
+          (sectionId == 'meta' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'navBrand', 'navLinks', 'navCtaLabel', 'footerLeft', 'footerRight',
+            'heroEyebrow', 'heroHeadline', 'heroLead', 'heroExploreBtn', 'heroSelftestBtn',
+            'heroShiftsBarTitle', 'heroShiftsBarTag', 'heroScrollCue', 'heroShifts',
+            'stageEyebrow', 'stageHeadline', 'stageDescription', 'stageMode2026Label',
+            'stageMode2035Label', 'stageAxisKeyX', 'stageAxisKeyY', 'stageAxisKeyZ',
+            'gridEyebrow', 'gridHeadline', 'gridDescription', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'milieus_2035' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'milieus', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'milieus_2026' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'classicMilieus', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'axes_rifts' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'axisLabels', 'riftLines', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'transformation' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'eyebrow', 'headline', 'description', 'arguments', 'calcEyebrow',
+            'calcHeadline', 'calcSteps', 'compHeadline', 'compDescription',
+            'comparisonRows', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'distribution' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'eyebrow', 'headline', 'description', 'ledgerFooterLabel',
+            'causalShifts', 'updatedAt', 'updatedBy'
+          ])) ||
+          (sectionId == 'self_test' && incoming().diff(existing()).affectedKeys().hasOnly([
+            'eyebrow', 'headline', 'description', 'scaleOptions', 'questions',
+            'idealCoords', 'secondSentences', 'updatedAt', 'updatedBy'
+          ]))
+        );
+      allow delete: if isValidContentSectionId(sectionId) && isAdmin();
     }
   }
 }

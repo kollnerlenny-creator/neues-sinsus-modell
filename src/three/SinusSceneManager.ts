@@ -6,8 +6,12 @@ import {
   CLASSIC_MILIEUS_2026,
   MILIEUS,
   RIFT_LINES,
+  type AxisLabelSpec,
+  type ClassicMilieu2026Spec,
   type MilieuId,
+  type MilieuSpec,
   type ModelMode,
+  type RiftLineSpec,
 } from '../data/milieus';
 import {
   clamp01,
@@ -45,6 +49,13 @@ export interface SceneCallbacks {
     userMarkerPosition: ProjectedLabelPosition,
   ) => void;
   onContextLost?: (lost: boolean) => void;
+}
+
+export interface DynamicSceneData {
+  milieus: MilieuSpec[];
+  classicMilieus: ClassicMilieu2026Spec[];
+  axisLabels: AxisLabelSpec[];
+  riftLines: RiftLineSpec[];
 }
 
 const _vec3 = new THREE.Vector3();
@@ -141,10 +152,14 @@ export class SinusSceneManager {
   private classicRigs: Map<string, Classic2026Rig> = new Map();
   private interactables2035: THREE.Object3D[] = [];
   private interactables2026: THREE.Object3D[] = [];
+  private islandsGroup: THREE.Group;
   private classicGroup: THREE.Group;
+  private axisSignsGroup: THREE.Group;
   private riftsGroup: THREE.Group;
   private riftMaterials: THREE.MeshBasicMaterial[] = [];
   private zAxisGroup: THREE.Group | null = null;
+  private zTopSprite: THREE.Sprite | null = null;
+  private maxAnisotropy = 4;
   private userMarker: UserMarkerRig;
   private hasUserMarker = false;
   private userWorldPos = { x: 0, y: 2, z: 0 };
@@ -180,7 +195,11 @@ export class SinusSceneManager {
   private resizeObserver: ResizeObserver;
   private intersectionObserver: IntersectionObserver | null = null;
 
-  constructor(container: HTMLElement, callbacks: SceneCallbacks) {
+  constructor(
+    container: HTMLElement,
+    callbacks: SceneCallbacks,
+    initialData?: DynamicSceneData,
+  ) {
     this.container = container;
     this.callbacks = callbacks;
     this.isSoftwareGl = detectSoftwareGl();
@@ -224,6 +243,7 @@ export class SinusSceneManager {
     this.container.appendChild(this.renderer.domElement);
 
     const maxAnisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    this.maxAnisotropy = maxAnisotropy;
 
     // 4. Studio Environment Reflections
     const pmrem = new THREE.PMREMGenerator(this.renderer);
@@ -264,31 +284,26 @@ export class SinusSceneManager {
     this.setupLighting();
 
     // 7. Floor Plate, Fine Grid, Axis Beams & Engraved 3D Axis Plaques
-    this.setupCoordinateFloorAndAxes(maxAnisotropy);
+    this.axisSignsGroup = new THREE.Group();
+    this.setupCoordinateFloorAndAxes();
+    this.scene.add(this.axisSignsGroup);
+    this.buildAxisSigns(initialData?.axisLabels ?? AXIS_LABELS);
 
-    // 8. 6 Floating 2035 Islands (with on-disc labels)
-    for (const spec of MILIEUS) {
-      const rig = buildFloatingIslandRig(spec, maxAnisotropy);
-      this.scene.add(rig.rootGroup);
-      this.islandRigs.set(spec.id, rig);
-      this.interactables2035.push(rig.hitMesh);
-    }
+    // 8. 6 Floating 2035 Islands
+    this.islandsGroup = new THREE.Group();
+    this.scene.add(this.islandsGroup);
+    this.buildIslands(initialData?.milieus ?? MILIEUS);
 
-    // 9. 10 Classic Overlapping 2026 SINUS Ellipses (with on-disc labels)
+    // 9. 10 Classic Overlapping 2026 SINUS Ellipses
     this.classicGroup = new THREE.Group();
     this.classicGroup.visible = false;
     this.scene.add(this.classicGroup);
-    for (const spec of CLASSIC_MILIEUS_2026) {
-      const rig = buildClassic2026Rig(spec, maxAnisotropy);
-      this.classicGroup.add(rig.rootGroup);
-      this.classicRigs.set(spec.id, rig);
-      this.interactables2026.push(rig.hitMesh);
-    }
+    this.buildClassicMilieus(initialData?.classicMilieus ?? CLASSIC_MILIEUS_2026);
 
     // 10. Subtle Crimson Separation Rifts on 2035 Floor
     this.riftsGroup = new THREE.Group();
     this.scene.add(this.riftsGroup);
-    this.buildRiftLines();
+    this.buildRiftLines(initialData?.riftLines ?? RIFT_LINES);
 
     // 11. User Self-Test Marker
     this.userMarker = buildUserMarkerRig();
@@ -361,7 +376,7 @@ export class SinusSceneManager {
     this.scene.add(rimLight);
   }
 
-  private setupCoordinateFloorAndAxes(maxAnisotropy: number): void {
+  private setupCoordinateFloorAndAxes(): void {
     // Matte pure-black architectural floor plate blending into dark canvas
     const floorGeo = new THREE.PlaneGeometry(24.0, 18.8);
     floorGeo.rotateX(-Math.PI / 2);
@@ -436,60 +451,6 @@ export class SinusSceneManager {
     yConeBack.position.set(-9.8, 0.035, -7.3);
     axisGroup.add(yConeBack);
 
-    // Crisp camera-facing 3D Sprite placards anchored on perimeter stanchion pins (readable from every orbit angle)
-    const pinGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.72, 8);
-    const baseDotGeo = new THREE.CircleGeometry(0.11, 16);
-    baseDotGeo.rotateX(-Math.PI / 2);
-
-    const addAxisSign = (
-      title: string,
-      subtitle: string | undefined,
-      accentColor: string,
-      x: number,
-      z: number,
-      spriteScale = 3.55,
-    ) => {
-      const pinColor = new THREE.Color(accentColor);
-      const pinMat = new THREE.MeshBasicMaterial({
-        color: pinColor,
-        transparent: true,
-        opacity: 0.65,
-      });
-      const pin = new THREE.Mesh(pinGeo, pinMat);
-      pin.position.set(x, 0.36, z);
-      axisGroup.add(pin);
-
-      const dot = new THREE.Mesh(baseDotGeo, pinMat);
-      dot.position.set(x, 0.03, z);
-      axisGroup.add(dot);
-
-      const { texture, aspect } = createAxisSpriteTexture(
-        title,
-        subtitle,
-        accentColor,
-        maxAnisotropy,
-      );
-      const spriteMat = new THREE.SpriteMaterial({
-        map: texture,
-        transparent: true,
-        depthWrite: false,
-      });
-      const sprite = new THREE.Sprite(spriteMat);
-      sprite.position.set(x, 1.22, z);
-      sprite.scale.set(spriteScale, spriteScale / aspect, 1);
-      axisGroup.add(sprite);
-    };
-
-    // X-Axis signs along front rim
-    addAxisSign('← Tradition & Bewahrung', 'Sicherheit · Bestand', '#cbd5e1', -6.6, 7.95, 4.0);
-    addAxisSign('X · Grundorientierung', 'Werteachse', '#f8fafc', 0.0, 8.05, 3.65);
-    addAxisSign('Neuorientierung · Öko/Tech →', 'Transformation', '#34d399', 6.6, 7.95, 4.1);
-
-    // Y-Axis signs along left rim
-    addAxisSign('Untere Schicht', 'Geringe Ressourcen', '#f87171', -10.35, 5.1, 3.65);
-    addAxisSign('Y · Soziale Lage', 'Mittlere Schicht', '#f8fafc', -10.35, 0.0, 3.65);
-    addAxisSign('Oberschicht', 'Wohlstand · Bildung', '#34d399', -10.35, -5.1, 3.65);
-
     // Z-Axis (Vertical Resilience) mast at back-right (scale 0..100 -> 0..7.5 units)
     const zAxisGroup = new THREE.Group();
     const zMat = new THREE.MeshStandardMaterial({
@@ -514,28 +475,131 @@ export class SinusSceneManager {
       zAxisGroup.add(tick);
     }
 
-    // Crisp 3D sprite cap on top of Z-axis mast
-    const { texture: zTopTex, aspect: zTopAspect } = createAxisSpriteTexture(
-      'Z · Resilienz 2035',
-      'Schutzhöhe 0–100',
-      '#34d399',
-      maxAnisotropy,
-    );
-    const zTopSprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: zTopTex, transparent: true, depthWrite: false }),
-    );
-    zTopSprite.position.set(9.2, 8.5, -5.8);
-    zTopSprite.scale.set(3.45, 3.45 / zTopAspect, 1);
-    zAxisGroup.add(zTopSprite);
-
     this.zAxisGroup = zAxisGroup;
     axisGroup.add(zAxisGroup);
 
     this.scene.add(axisGroup);
   }
 
-  private buildRiftLines(): void {
-    for (const rift of RIFT_LINES) {
+  private disposeGroupChildren(group: THREE.Group): void {
+    const children = [...group.children];
+    for (const child of children) {
+      group.remove(child);
+      child.traverse((obj) => {
+        if (
+          obj instanceof THREE.Mesh ||
+          obj instanceof THREE.LineSegments ||
+          obj instanceof THREE.Line
+        ) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => m.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        } else if (obj instanceof THREE.Sprite) {
+          obj.material.map?.dispose();
+          obj.material.dispose();
+        }
+      });
+    }
+  }
+
+  private buildAxisSigns(axisLabels: AxisLabelSpec[]): void {
+    this.disposeGroupChildren(this.axisSignsGroup);
+    if (this.zTopSprite && this.zAxisGroup) {
+      this.zAxisGroup.remove(this.zTopSprite);
+      this.zTopSprite.material.map?.dispose();
+      this.zTopSprite.material.dispose();
+      this.zTopSprite = null;
+    }
+
+    const pinGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.72, 8);
+    const baseDotGeo = new THREE.CircleGeometry(0.11, 16);
+    baseDotGeo.rotateX(-Math.PI / 2);
+
+    for (const label of axisLabels) {
+      const { texture, aspect } = createAxisSpriteTexture(
+        label.text,
+        label.subtext,
+        label.accentColor,
+        this.maxAnisotropy,
+      );
+      const spriteMat = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false,
+      });
+      const sprite = new THREE.Sprite(spriteMat);
+
+      if (label.axis === 'Z' && this.zAxisGroup) {
+        sprite.position.set(label.worldPos.x, Math.max(8.2, label.worldPos.y), label.worldPos.z);
+        sprite.scale.set(3.45, 3.45 / aspect, 1);
+        this.zAxisGroup.add(sprite);
+        this.zTopSprite = sprite;
+      } else {
+        const pinColor = new THREE.Color(label.accentColor);
+        const pinMat = new THREE.MeshBasicMaterial({
+          color: pinColor,
+          transparent: true,
+          opacity: 0.65,
+        });
+        const pin = new THREE.Mesh(pinGeo, pinMat);
+        pin.position.set(label.worldPos.x, 0.36, label.worldPos.z);
+        this.axisSignsGroup.add(pin);
+
+        const dot = new THREE.Mesh(baseDotGeo, pinMat);
+        dot.position.set(label.worldPos.x, 0.03, label.worldPos.z);
+        this.axisSignsGroup.add(dot);
+
+        const spriteScale = label.axis === 'X' ? 4.0 : 3.65;
+        sprite.position.set(label.worldPos.x, Math.max(1.15, label.worldPos.y), label.worldPos.z);
+        sprite.scale.set(spriteScale, spriteScale / aspect, 1);
+        this.axisSignsGroup.add(sprite);
+      }
+    }
+  }
+
+  private buildIslands(milieus: MilieuSpec[]): void {
+    this.disposeGroupChildren(this.islandsGroup);
+    this.islandRigs.clear();
+    this.interactables2035 = [];
+
+    for (const spec of milieus) {
+      const rig = buildFloatingIslandRig(spec, this.maxAnisotropy);
+      rig.isSelected =
+        this.selection?.kind === '2035' && this.selection.id === spec.id;
+      rig.isHovered =
+        this.hovered?.kind === '2035' && this.hovered.id === spec.id;
+      this.islandsGroup.add(rig.rootGroup);
+      this.islandRigs.set(spec.id, rig);
+      this.interactables2035.push(rig.hitMesh);
+    }
+  }
+
+  private buildClassicMilieus(classicMilieus: ClassicMilieu2026Spec[]): void {
+    this.disposeGroupChildren(this.classicGroup);
+    this.classicRigs.clear();
+    this.interactables2026 = [];
+
+    for (const spec of classicMilieus) {
+      const rig = buildClassic2026Rig(spec, this.maxAnisotropy);
+      rig.isSelected =
+        this.selection?.kind === '2026' && this.selection.id === spec.id;
+      rig.isHovered =
+        this.hovered?.kind === '2026' && this.hovered.id === spec.id;
+      this.classicGroup.add(rig.rootGroup);
+      this.classicRigs.set(spec.id, rig);
+      this.interactables2026.push(rig.hitMesh);
+    }
+  }
+
+  private buildRiftLines(riftLines: RiftLineSpec[]): void {
+    this.disposeGroupChildren(this.riftsGroup);
+    this.riftMaterials = [];
+
+    for (const rift of riftLines) {
+      if (!rift.points || rift.points.length < 2) continue;
       const pts = rift.points.map((p) => new THREE.Vector3(p.x, 0.026, p.z));
       const curve = new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.4);
 
@@ -558,6 +622,17 @@ export class SinusSceneManager {
       this.riftMaterials.push(haloMat);
       this.riftsGroup.add(new THREE.Mesh(haloGeo, haloMat));
     }
+  }
+
+  public updateSceneData(data: DynamicSceneData): void {
+    if (this.isDisposed) return;
+    this.buildAxisSigns(data.axisLabels);
+    this.buildIslands(data.milieus);
+    this.buildClassicMilieus(data.classicMilieus);
+    this.buildRiftLines(data.riftLines);
+    this.needsSceneStep = true;
+    this.stepAnimations(0.016);
+    this.scheduleRender();
   }
 
   private bindEvents(): void {

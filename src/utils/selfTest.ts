@@ -132,11 +132,27 @@ export interface SelfTestResult {
   explanation: string;
 }
 
+export const DEFAULT_SECOND_SENTENCES: Record<MilieuId, string> = {
+  avantgarde:
+    'Damit erfüllst du die typischen Kriterien des Leitmilieus 2035, das technologischen Wandel und Klimatransformation aktiv gestaltet und davon profitiert.',
+  konservativ:
+    'Finanzielle Stabilität und Bewahrung prägen dein Profil, wodurch du gegen Krisen gut gepuffert bist, schnellem kulturell-technischem Umbruch aber eher skeptisch begegnest.',
+  digital_adaptiv:
+    'Durch hohe digitale Lernbereitschaft und solide Qualifikation gehörst du zu den dynamischen Aufsteigern, die vom KI-Strukturwandel profitieren.',
+  erodierte_mitte:
+    'Dein Profil spiegelt die typische Spannungslage der verunsicherten Arbeitnehmer in der Mitte wider, die zwischen Modernisierungsanspruch, steigenden Lebenshaltungskosten und Abstiegssorgen balanciert.',
+  senioren:
+    'Beständigkeit und soziale Absicherung stehen für dich im Vordergrund, während rasante digitale und ökonomische Umbrüche eher als Belastung erlebt werden.',
+  prekariat:
+    'Steigende Alltagskosten bei begrenzten Schutzpuffern führen dazu, dass strukturelle Transformationskosten im Modell überproportional stark durchschlagen.',
+};
+
 function buildTwoSentenceExplanation(
   top: MilieuSpec,
   uX: number,
   uY: number,
   uZ: number,
+  secondSentences: Record<MilieuId, string> = DEFAULT_SECOND_SENTENCES,
 ): string {
   const xDesc =
     uX >= 65
@@ -159,47 +175,56 @@ function buildTwoSentenceExplanation(
         ? `spürbaren Verwundbarkeit gegenüber ökonomischen und digitalen Umbrüchen (Z: ${uZ} %)`
         : `moderaten Anpassungsfähigkeit an den Strukturwandel (Z: ${uZ} %)`;
 
-  const secondSentenceMap: Record<MilieuId, string> = {
-    avantgarde:
-      'Damit erfüllst du die typischen Kriterien des Leitmilieus 2035, das technologischen Wandel und Klimatransformation aktiv gestaltet und davon profitiert.',
-    konservativ:
-      'Finanzielle Stabilität und Bewahrung prägen dein Profil, wodurch du gegen Krisen gut gepuffert bist, schnellem kulturell-technischem Umbruch aber eher skeptisch begegnest.',
-    digital_adaptiv:
-      'Durch hohe digitale Lernbereitschaft und solide Qualifikation gehörst du zu den dynamischen Aufsteigern, die vom KI-Strukturwandel profitieren.',
-    erodierte_mitte:
-      'Dein Profil spiegelt die typische Spannungslage der verunsicherten Arbeitnehmer in der Mitte wider, die zwischen Modernisierungsanspruch, steigenden Lebenshaltungskosten und Abstiegssorgen balanciert.',
-    senioren:
-      'Beständigkeit und soziale Absicherung stehen für dich im Vordergrund, während rasante digitale und ökonomische Umbrüche eher als Belastung erlebt werden.',
-    prekariat:
-      'Steigende Alltagskosten bei begrenzten Schutzpuffern führen dazu, dass strukturelle Transformationskosten im Modell überproportional stark durchschlagen.',
-  };
+  return `Deine Kombination aus einer ${xDesc}, einer ${yDesc} und einer ${zDesc} liegt im 3D-Raum am nächsten beim Profil „${top.name}“. ${secondSentences[top.id] ?? DEFAULT_SECOND_SENTENCES[top.id]}`;
+}
 
-  return `Deine Kombination aus einer ${xDesc}, einer ${yDesc} und einer ${zDesc} liegt im 3D-Raum am nächsten beim Profil „${top.name}“. ${secondSentenceMap[top.id]}`;
+export interface SelfTestOverrides {
+  questions?: SelfTestQuestion[];
+  milieus?: MilieuSpec[];
+  idealCoords?: Record<MilieuId, IdealCoord>;
+  secondSentences?: Record<MilieuId, string>;
 }
 
 export function calculateSelfTestResult(
   answers: Record<number, number>,
+  overrides?: SelfTestOverrides,
 ): SelfTestResult {
+  const activeQuestions = overrides?.questions ?? SELF_TEST_QUESTIONS;
+  const activeMilieus = overrides?.milieus ?? MILIEUS;
+  const activeIdealCoords = overrides?.idealCoords ?? MILIEU_IDEAL_COORDS;
+  const activeSecondSentences =
+    overrides?.secondSentences ?? DEFAULT_SECOND_SENTENCES;
+
   let sumX = 0;
   let sumY = 0;
   let sumZ = 0;
+  let countX = 0;
+  let countY = 0;
+  let countZ = 0;
 
-  for (const q of SELF_TEST_QUESTIONS) {
+  for (const q of activeQuestions) {
     const raw = answers[q.id] ?? 3;
     const clamped = Math.min(5, Math.max(1, Math.round(raw)));
     const score = q.inverted ? 6 - clamped : clamped;
-    if (q.dimension === 'X') sumX += score;
-    else if (q.dimension === 'Y') sumY += score;
-    else sumZ += score;
+    if (q.dimension === 'X') {
+      sumX += score;
+      countX += 1;
+    } else if (q.dimension === 'Y') {
+      sumY += score;
+      countY += 1;
+    } else {
+      sumZ += score;
+      countZ += 1;
+    }
   }
 
-  // Exact normalization to 0..100
-  const uX = ((sumX - 3) / 12) * 100;
-  const uY = ((sumY - 3) / 12) * 100;
-  const uZ = ((sumZ - 4) / 16) * 100;
+  // Exact normalization to 0..100 (default: 3 questions X, 3 Y, 4 Z -> /12, /12, /16)
+  const uX = countX > 0 ? ((sumX - countX) / (countX * 4)) * 100 : 50;
+  const uY = countY > 0 ? ((sumY - countY) / (countY * 4)) * 100 : 50;
+  const uZ = countZ > 0 ? ((sumZ - countZ) / (countZ * 4)) * 100 : 50;
 
-  const entries = MILIEUS.map((milieu) => {
-    const ideal = MILIEU_IDEAL_COORDS[milieu.id];
+  const entries = activeMilieus.map((milieu) => {
+    const ideal = activeIdealCoords[milieu.id] ?? MILIEU_IDEAL_COORDS[milieu.id];
     const distance = Math.sqrt(
       Math.pow(uX - ideal.x, 2) +
         Math.pow(uY - ideal.y, 2) +
@@ -269,6 +294,7 @@ export function calculateSelfTestResult(
       uXRounded,
       uYRounded,
       uZRounded,
+      activeSecondSentences,
     ),
   };
 }

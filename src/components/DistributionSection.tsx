@@ -8,122 +8,30 @@ import {
   TrendingDown,
   TrendingUp,
   Users,
-  type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
-import { MILIEUS } from '../data/milieus';
+import { useMemo, useState } from 'react';
+import { useSiteContent } from '../context/ContentContext';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
-interface CausalShiftItem {
-  number: string;
-  icon: LucideIcon;
-  tag: string;
-  question: string;
-  transition: string;
-  delta: string;
-  trend: 'up' | 'down' | 'merge';
-  accentColor: string;
-  baseline2026?: string;
-  development2035?: string;
-  developmentLabel?: string;
-  subGroups?: {
-    milieuId: 'avantgarde' | 'digital_adaptiv' | 'konservativ';
-    name: string;
-    share: string;
-    color: string;
-    text: string;
-  }[];
-}
-
-const CAUSAL_SHIFTS: CausalShiftItem[] = [
-  {
-    number: '01',
-    icon: Users,
-    tag: 'Demografischer Faktor',
-    question: 'Warum wächst die „Traditionelle Senioren-Mehrheit“ auf 24 %?',
-    transition: '16 % → 24 %',
-    delta: '+8 %',
-    trend: 'up',
-    accentColor: '#8b5cf6',
-    baseline2026:
-      'Traditionelles Milieu (9 %) + ältere Teile der Nostalgisch-Bürgerlichen (ca. 7 %) = 16 %.',
-    developmentLabel: 'Entwicklung bis 2035 (+8 %)',
-    development2035:
-      'Laut der 15. koordinierten Bevölkerungsvorausberechnung des Statistischen Bundesamtes gehen bis 2035 die geburtenstarken Babyboomer-Jahrgänge (1955–1969) vollständig in Rente. Der Anteil der über 65-Jährigen steigt massiv an. Da ältere Kohorten statistisch deutlich stärker an Sicherheit und Bewahrung orientiert sind, wächst dieses Milieu auf 24 % – fast ein Viertel der Gesamtbevölkerung.',
-  },
-  {
-    number: '02',
-    icon: Cpu,
-    tag: 'KI- & Polarisierungseffekt',
-    question: 'Warum schrumpft die „Erodierte Mitte“ auf 15 %?',
-    transition: '20 % → 15 %',
-    delta: '−5 %',
-    trend: 'down',
-    accentColor: '#f59e0b',
-    baseline2026:
-      'Adaptiv-Pragmatische Mitte (12 %) + jüngere Nostalgisch-Bürgerliche (4 %) + Teile der Konsum-Hedonisten (4 %) = 20 %.',
-    developmentLabel: 'Entwicklung bis 2035 (−5 %)',
-    development2035:
-      'Die klassische Mitte spaltet sich in zwei Richtungen auf: Wer digitale Kompetenzen erwirbt, steigt nach oben in das Digital-Adaptive Leistungs-Milieu auf. Wer jedoch in klassischen Verwaltungs-, Sachbearbeiter- oder Routineberufen arbeitet, die bis 2035 weitgehend durch KI-Systeme automatisiert werden, rutscht durch Reallohnverluste nach unten ins Prekariat ab. Übrig bleibt ein verunsicherter Kern von 15 %.',
-  },
-  {
-    number: '03',
-    icon: Flame,
-    tag: 'Transformationskosten',
-    question: 'Warum wächst das „Abgehängte Digital- & Klima-Prekariat“ auf 16 %?',
-    transition: '13 % → 16 %',
-    delta: '+3 %',
-    trend: 'up',
-    accentColor: '#ef4444',
-    baseline2026:
-      'Prekäres Milieu (9 %) + untere Teile der Konsum-Hedonisten (4 %) = 13 %.',
-    developmentLabel: 'Entwicklung bis 2035 (+3 %)',
-    development2035:
-      'Steigende Wohn- und Energiekosten (CO₂-Bepreisung bei unsanierten Mietwohnungen) sowie der Wegfall einfacher Tätigkeiten führen zu sozialem Abstieg aus der unteren Mitte. Dadurch wächst das Prekariat auf 16 % an.',
-  },
-  {
-    number: '04',
-    icon: Layers,
-    tag: 'Bündelung der Eliten & Aufsteiger',
-    question:
-      'Warum verschmelzen die oberen & modernen Milieus zu 16 %, 15 % und 14 %?',
-    transition: '16 % + 15 % + 14 %',
-    delta: '45 % gesamt',
-    trend: 'merge',
-    accentColor: '#10b981',
-    subGroups: [
-      {
-        milieuId: 'avantgarde',
-        name: 'Tech-Ökologische Avantgarde',
-        share: '16 %',
-        color: '#10b981',
-        text: 'Entsteht aus der Verschmelzung des Postmateriellen (12 %), Neo-Ökologischen (8 %) und Teilen des Expeditiven Milieus (10 %). Da ein Teil dieser Gruppen durch hohe Lebenshaltungskosten oder traditionellere Orientierung im Alter in andere Segmente wandert, bündelt sich die hochgebildete, klimaresiliente Elite bei 16 %.',
-      },
-      {
-        milieuId: 'digital_adaptiv',
-        name: 'Digital-Adaptives Leistungs-Milieu',
-        share: '15 %',
-        color: '#06b6d4',
-        text: 'Setzt sich aus dem Milieu der Performer (10 %) und rund 5 % digitalen Aufsteigern aus der ehemaligen Mitte zusammen.',
-      },
-      {
-        milieuId: 'konservativ',
-        name: 'Konservativ-Etablierte Besitzstandswahrer',
-        share: '14 %',
-        color: '#3b82f6',
-        text: 'Bildet sich aus dem Konservativ-Gehobenen Milieu (11 %) sowie wohlhabenden, aber veränderungsskeptischen Teilen der Performer (3 %).',
-      },
-    ],
-  },
-];
-
-const SORTED_2035 = [...MILIEUS].sort((a, b) => b.share2035 - a.share2035);
+const SHIFT_ICONS = [Users, Cpu, Flame, Layers];
 
 export function DistributionSection() {
+  const { content } = useSiteContent();
+  const { distribution } = content;
+  const milieus = content.milieus_2035.milieus;
   const [expandedShifts, setExpandedShifts] = useState<Record<string, boolean>>({
     '01': true,
   });
+
+  const sorted2035 = useMemo(
+    () => [...milieus].sort((a, b) => b.share2035 - a.share2035),
+    [milieus],
+  );
+  const totalShare2035 = useMemo(
+    () => Math.round(milieus.reduce((s, m) => s + m.share2035, 0) * 10) / 10,
+    [milieus],
+  );
 
   const toggleShift = (num: string) => {
     setExpandedShifts((prev) => ({ ...prev, [num]: !prev[num] }));
@@ -144,16 +52,14 @@ export function DistributionSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              04 · Mathematische &amp; Soziologische Logik · Kausalketten 2026 → 2035
+              {distribution.eyebrow}
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              Wie kommt die Prozentverteilung 2035 zustande?
+              {distribution.headline}
             </h2>
           </div>
           <p className="lg:col-span-5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            Im SINUS-Modell 2026 verteilen sich 10 Milieus relativ gleichmäßig (8–12 %).
-            Bis 2035 verschieben Demografie, KI-Automatisierung und Klimakosten die
-            Gewichte zu sechs klar abgegrenzten Blöcken.
+            {distribution.description}
           </p>
         </motion.div>
 
@@ -165,7 +71,7 @@ export function DistributionSection() {
           transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
           className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {SORTED_2035.map((m, idx) => {
+          {sorted2035.map((m, idx) => {
             const Icon = getMilieuIcon(m.id);
             const diff = m.share2035 - m.share2026;
             const diffLabel = diff > 0 ? `+${diff} %` : diff < 0 ? `${diff} %` : '±0 %';
@@ -249,8 +155,8 @@ export function DistributionSection() {
             className="pointer-events-none hidden lg:block absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-violet-400 via-amber-400 to-emerald-400 opacity-75"
           />
 
-          {CAUSAL_SHIFTS.map((item, idx) => {
-            const ShiftIcon = item.icon;
+          {distribution.causalShifts.map((item, idx) => {
+            const ShiftIcon = SHIFT_ICONS[idx % SHIFT_ICONS.length];
             const TrendIcon =
               item.trend === 'up'
                 ? TrendingUp
@@ -426,11 +332,19 @@ export function DistributionSection() {
           {/* Clean bottom sum verification footer inside the ledger */}
           <div className="flex flex-col gap-3 bg-white/[0.025] px-7 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-10">
             <span className="text-sm font-medium text-[#9ea4b0]">
-              Struktur-Bilanz der 6 Zukunfts-Milieus 2035
+              {distribution.ledgerFooterLabel}
             </span>
             <div className="font-mono-tabular text-sm sm:text-base font-medium text-[#e2e8f0]">
-              24 % + 16 % + 16 % + 15 % + 15 % + 14 % ={' '}
-              <strong className="text-emerald-400">100 %</strong>
+              {sorted2035.map((m) => `${m.share2035} %`).join(' + ')} ={' '}
+              <strong
+                className={
+                  Math.abs(totalShare2035 - 100) < 0.05
+                    ? 'text-emerald-400'
+                    : 'text-amber-400'
+                }
+              >
+                {totalShare2035} %
+              </strong>
             </div>
           </div>
         </motion.div>

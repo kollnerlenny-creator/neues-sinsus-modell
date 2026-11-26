@@ -89,6 +89,221 @@
         "uZ",
         "createdAt"
       ]
+    },
+    "AdminRecord": {
+      "title": "Admin Authorization Record",
+      "description": "Optional explicit admin UID whitelist document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the administrator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when admin access was provisioned."
+        }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "SiteContentMeta": {
+      "title": "Site Content Meta & Hero Section",
+      "description": "Editable navigation, footer, hero hook, 3D stage header, and milieu grid header texts.",
+      "type": "object",
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "enum": ["meta"],
+          "description": "Fixed section identifier."
+        },
+        "navBrand": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "navLinks": { "type": "array", "description": "Bounded list (1..8) of navigation links." },
+        "navCtaLabel": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "footerLeft": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "footerRight": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "heroEyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "heroHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "heroLead": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "heroExploreBtn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "heroSelftestBtn": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "heroShiftsBarTitle": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "heroShiftsBarTag": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "heroScrollCue": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "heroShifts": { "type": "array", "description": "Bounded list (1..6) of hero shift highlight cards." },
+        "stageEyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "stageHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "stageDescription": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "stageMode2026Label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "stageMode2035Label": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "stageAxisKeyX": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "stageAxisKeyY": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "stageAxisKeyZ": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "gridEyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "gridHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "gridDescription": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": [
+        "sectionId",
+        "navBrand",
+        "navLinks",
+        "navCtaLabel",
+        "footerLeft",
+        "footerRight",
+        "heroEyebrow",
+        "heroHeadline",
+        "heroLead",
+        "heroExploreBtn",
+        "heroSelftestBtn",
+        "heroShiftsBarTitle",
+        "heroShiftsBarTag",
+        "heroScrollCue",
+        "heroShifts",
+        "stageEyebrow",
+        "stageHeadline",
+        "stageDescription",
+        "stageMode2026Label",
+        "stageMode2035Label",
+        "stageAxisKeyX",
+        "stageAxisKeyY",
+        "stageAxisKeyZ",
+        "gridEyebrow",
+        "gridHeadline",
+        "gridDescription",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "SiteContentMilieus2035": {
+      "title": "Site Content 2035 Milieus",
+      "description": "All 6 editable 2035 milieu profiles, shares, resilience scores, and 3D coordinates.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["milieus_2035"] },
+        "milieus": { "type": "array", "description": "Exact 6 2035 MilieuSpec objects." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["sectionId", "milieus", "updatedAt", "updatedBy"]
+    },
+    "SiteContentMilieus2026": {
+      "title": "Site Content 2026 Classic Milieus",
+      "description": "All 10 editable 2026 classic milieu definitions, shares, colors, and 2D coordinates.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["milieus_2026"] },
+        "classicMilieus": { "type": "array", "description": "Exact 10 ClassicMilieu2026Spec objects." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["sectionId", "classicMilieus", "updatedAt", "updatedBy"]
+    },
+    "SiteContentAxesRifts": {
+      "title": "Site Content 3D Axes and Rifts",
+      "description": "Editable 3D coordinate axis labels and crimson floor rift lines.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["axes_rifts"] },
+        "axisLabels": { "type": "array", "description": "Bounded list (1..12) of AxisLabelSpec objects." },
+        "riftLines": { "type": "array", "description": "Bounded list (1..12) of RiftLineSpec objects." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": ["sectionId", "axisLabels", "riftLines", "updatedAt", "updatedBy"]
+    },
+    "SiteContentTransformation": {
+      "title": "Site Content Transformation Section",
+      "description": "Editable transformation arguments, calculation steps, and 2026 vs 2035 comparison matrix.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["transformation"] },
+        "eyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "headline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "arguments": { "type": "array", "description": "Bounded list (1..6) of TransformationArgument items." },
+        "calcEyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "calcHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "calcSteps": { "type": "array", "description": "Bounded list (1..8) of calculation steps." },
+        "compHeadline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "compDescription": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "comparisonRows": { "type": "array", "description": "Bounded list (1..12) of ComparisonRow items." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": [
+        "sectionId",
+        "eyebrow",
+        "headline",
+        "description",
+        "arguments",
+        "calcEyebrow",
+        "calcHeadline",
+        "calcSteps",
+        "compHeadline",
+        "compDescription",
+        "comparisonRows",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "SiteContentDistribution": {
+      "title": "Site Content Distribution Section",
+      "description": "Editable distribution section headers and causal shift explanations.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["distribution"] },
+        "eyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "headline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "ledgerFooterLabel": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "causalShifts": { "type": "array", "description": "Bounded list (1..8) of causal shift cards." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": [
+        "sectionId",
+        "eyebrow",
+        "headline",
+        "description",
+        "ledgerFooterLabel",
+        "causalShifts",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "SiteContentSelfTest": {
+      "title": "Site Content Self-Test Configuration",
+      "description": "Editable self-test intro, Likert scale labels, 10 questions, ideal coordinates, and result texts.",
+      "type": "object",
+      "properties": {
+        "sectionId": { "type": "string", "enum": ["self_test"] },
+        "eyebrow": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "headline": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 600 },
+        "scaleOptions": { "type": "array", "description": "Exact 5 Likert scale options." },
+        "questions": { "type": "array", "description": "Exact 10 self-test questions." },
+        "idealCoords": { "type": "object", "description": "Map of 6 milieu IDs to { x, y, z } ideal coordinates." },
+        "secondSentences": { "type": "object", "description": "Map of 6 milieu IDs to sociological summary sentences." },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" }
+      },
+      "required": [
+        "sectionId",
+        "eyebrow",
+        "headline",
+        "description",
+        "scaleOptions",
+        "questions",
+        "idealCoords",
+        "secondSentences",
+        "updatedAt",
+        "updatedBy"
+      ]
     }
   },
   "firestore": {
@@ -99,6 +314,14 @@
     "/surveys/{surveyCode}/responses/{responseId}": {
       "schema": { "$ref": "#/entities/SurveyResponse" },
       "description": "Anonymous participant milieu results for a given live survey session."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Admin whitelist records (server-provisioned only)."
+    },
+    "/siteContent/{sectionId}": {
+      "schema": { "$ref": "#/entities/SiteContentMeta" },
+      "description": "Modular CMS content sections (meta, milieus_2035, milieus_2026, axes_rifts, transformation, distribution, self_test)."
     }
   }
 }

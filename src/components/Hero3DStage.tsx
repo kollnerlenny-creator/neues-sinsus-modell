@@ -17,13 +17,12 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
-import {
-  CLASSIC_MILIEUS_2026,
-  MILIEUS,
-  type ClassicMilieu2026Spec,
-  type MilieuSpec,
-  type ModelMode,
+import type {
+  ClassicMilieu2026Spec,
+  MilieuSpec,
+  ModelMode,
 } from '../data/milieus';
+import { useSiteContent } from '../context/ContentContext';
 import type { SelectionPayload } from '../three/SinusSceneManager';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
@@ -82,15 +81,19 @@ export function Hero3DStage({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const isMobile = useIsMobileViewport();
+  const { content } = useSiteContent();
+  const { meta } = content;
+  const milieus2035 = content.milieus_2035.milieus;
+  const milieus2026 = content.milieus_2026.classicMilieus;
 
   const selected2035: MilieuSpec | null =
     selection?.kind === '2035'
-      ? (MILIEUS.find((m) => m.id === selection.id) ?? null)
+      ? (milieus2035.find((m) => m.id === selection.id) ?? null)
       : null;
 
   const selected2026: ClassicMilieu2026Spec | null =
     selection?.kind === '2026'
-      ? (CLASSIC_MILIEUS_2026.find((m) => m.id === selection.id) ?? null)
+      ? (milieus2026.find((m) => m.id === selection.id) ?? null)
       : null;
 
   const SelectedIcon = selected2035 ? getMilieuIcon(selected2035.id) : Layers;
@@ -534,17 +537,16 @@ export function Hero3DStage({
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              01 · Interaktives Raummodell · 2026 vs. 2035
+              {meta.stageEyebrow}
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-5xl lg:text-[48px] font-semibold tracking-tight text-[#f7f8f8] leading-[1.08] text-balance">
-              Das schwebende 3D-SINUS-Modell
+              {meta.stageHeadline}
             </h2>
           </div>
 
           <div className="lg:col-span-5 flex flex-col gap-4 lg:items-end">
             <p className="text-base sm:text-[17px] leading-relaxed text-[#b4bac4] lg:text-right max-w-lg text-balance">
-              Drehe den sozialen Raum frei um alle Achsen und vergleiche die 10
-              klassischen Lebenswelten 2026 mit 6 Zukunfts-Blöcken 2035.
+              {meta.stageDescription}
             </p>
 
             {/* Animated Segmented Mode Toggle */}
@@ -573,7 +575,7 @@ export function Hero3DStage({
                 )}
                 <span className="relative z-10 sm:hidden">2026 · 2D (10)</span>
                 <span className="relative z-10 hidden sm:inline">
-                  2026: Klassisch (10 Milieus)
+                  {meta.stageMode2026Label}
                 </span>
               </button>
               <button
@@ -596,7 +598,7 @@ export function Hero3DStage({
                 )}
                 <span className="relative z-10 sm:hidden">2035 · 3D (6)</span>
                 <span className="relative z-10 hidden sm:inline">
-                  2035: Schwebend 3D (6 Milieus)
+                  {meta.stageMode2035Label}
                 </span>
               </button>
             </div>
@@ -788,16 +790,16 @@ export function Hero3DStage({
             >
               <div className="flex items-center gap-2 text-xs text-[#cbd5e1]">
                 <span className="font-mono-tabular font-semibold text-white">X</span>
-                <span>Tradition ↔ Neuorientierung (Öko/Tech)</span>
+                <span>{meta.stageAxisKeyX}</span>
               </div>
               <div className="flex items-center gap-2 text-xs text-[#cbd5e1]">
                 <span className="font-mono-tabular font-semibold text-white">Y</span>
-                <span>Untere Schicht ↔ Oberschicht</span>
+                <span>{meta.stageAxisKeyY}</span>
               </div>
               {mode === '2035' && (
                 <div className="flex items-center gap-2 text-xs text-emerald-400">
                   <span className="font-mono-tabular font-semibold">Z</span>
-                  <span>Resilienz &amp; Schutzhöhe (0–100)</span>
+                  <span>{meta.stageAxisKeyZ}</span>
                 </div>
               )}
             </div>

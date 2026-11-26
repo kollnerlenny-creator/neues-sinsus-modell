@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
-import { MILIEUS, type MilieuId } from '../data/milieus';
+import type { MilieuId } from '../data/milieus';
+import { useSiteContent } from '../context/ContentContext';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
 interface MilieusGridSectionProps {
@@ -18,10 +19,13 @@ interface MilieusGridSectionProps {
 type MilieuFilter = 'all' | 'high' | 'pressure';
 
 export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
+  const { content } = useSiteContent();
+  const { meta } = content;
+  const milieus = content.milieus_2035.milieus;
   const [filter, setFilter] = useState<MilieuFilter>('all');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
-  const visibleMilieus = MILIEUS.filter((m) => {
+  const visibleMilieus = milieus.filter((m) => {
     if (filter === 'high') return m.resilienceScore >= 50;
     if (filter === 'pressure') return m.resilienceScore < 50;
     return true;
@@ -58,14 +62,13 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
         >
           <div className="max-w-3xl">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              02 · Strukturprofil 2035 · Sechs verdichtete Lebenswelten
+              {meta.gridEyebrow}
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              Die 6 Milieus im Detail
+              {meta.gridHeadline}
             </h2>
             <p className="mt-3.5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-              Kompakte Übersicht aller sechs Zukunfts-Blöcke nach Bevölkerungsanteil
-              und Krisenresilienz – vertiefende Profile lassen sich gezielt einblenden.
+              {meta.gridDescription}
             </p>
           </div>
 

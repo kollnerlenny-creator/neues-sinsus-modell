@@ -14,65 +14,32 @@ import {
   Users,
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useState } from 'react';
-import {
-  COMPARISON_ROWS,
-  MILIEUS,
-  TRANSFORMATION_ARGUMENTS,
-} from '../data/milieus';
+import { useMemo, useState } from 'react';
+import { useSiteContent } from '../context/ContentContext';
 import { getMilieuIcon } from '../utils/milieuIcons';
 
 type MatrixFocus = 'both' | '2026' | '2035';
 type DetailTab = 'calculation' | 'comparison';
 
 const ARGUMENT_ICONS = [Layers, MoveVertical, GitCompareArrows];
-
-const CALCULATION_STEPS = [
-  {
-    number: '01',
-    icon: Users,
-    color: '#8b5cf6',
-    title: 'Demografischer Faktor',
-    delta: '16 % → 24 %',
-    summary:
-      'Senioren-Mehrheit wächst von 16 % auf 24 % durch den vollständigen Renteneintritt der Babyboomer.',
-  },
-  {
-    number: '02',
-    icon: Cpu,
-    color: '#f59e0b',
-    title: 'KI-Polarisierung',
-    delta: '20 % → 15 %',
-    summary:
-      'Erodierte Mitte schrumpft von 20 % auf 15 % durch KI-Automatisierung in Büro- und Routineberufen.',
-  },
-  {
-    number: '03',
-    icon: Flame,
-    color: '#ef4444',
-    title: 'Transformationskosten',
-    delta: '13 % → 16 %',
-    summary:
-      'Abgehängtes Prekariat wächst von 13 % auf 16 % infolge von Wohn-, Energie- und CO₂-Kosten.',
-  },
-  {
-    number: '04',
-    icon: TrendingUp,
-    color: '#10b981',
-    title: 'Bündelung der Eliten & Aufsteiger',
-    delta: '16 % · 15 % · 14 %',
-    summary:
-      'Tech-Öko Avantgarde 16 %, Digital-Adaptives Milieu 15 %, Konservativ-Etablierte 14 % – Gesamtsumme = 100 %.',
-  },
-];
-
+const CALC_STEP_ICONS = [Users, Cpu, Flame, TrendingUp];
 const DIMENSION_ICONS = [Box, Hash, GitFork, Compass, Scale];
 
-const SHARE_SEGMENTS = [...MILIEUS].sort((a, b) => b.share2035 - a.share2035);
-
 export function TransformationSection() {
+  const { content } = useSiteContent();
+  const { transformation } = content;
+  const milieus = content.milieus_2035.milieus;
   const [focus, setFocus] = useState<MatrixFocus>('both');
   const [activeTab, setActiveTab] = useState<DetailTab>('calculation');
+
+  const shareSegments = useMemo(
+    () => [...milieus].sort((a, b) => b.share2035 - a.share2035),
+    [milieus],
+  );
+  const totalShare2035 = useMemo(
+    () => Math.round(milieus.reduce((s, m) => s + m.share2035, 0) * 10) / 10,
+    [milieus],
+  );
 
   return (
     <section
@@ -89,16 +56,14 @@ export function TransformationSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              03 · Soziologische Analyse · Strukturwandel 2026 → 2035
+              {transformation.eyebrow}
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              Vom 2D-Überlappungsmodell zur schwebenden 3D-Polarisierung
+              {transformation.headline}
             </h2>
           </div>
           <p className="lg:col-span-5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            Warum sich die zehn Lebenswelten der Gegenwart bis 2035 durch KI,
-            Klimakosten und Demografie zu sechs scharf getrennten Strukturblöcken
-            verdichten.
+            {transformation.description}
           </p>
         </motion.div>
 
@@ -110,7 +75,7 @@ export function TransformationSection() {
           transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
           className="linear-fade-window mt-12 grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.08] overflow-hidden rounded-3xl"
         >
-          {TRANSFORMATION_ARGUMENTS.map((arg, idx) => {
+          {transformation.arguments.map((arg, idx) => {
             const ArgIcon = ARGUMENT_ICONS[idx % ARGUMENT_ICONS.length];
             return (
               <motion.div
@@ -194,15 +159,15 @@ export function TransformationSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-[#9ea4b0]">
-                Quantitative Herleitung · Bevölkerungsanteile
+                {transformation.calcEyebrow}
               </p>
               <h3 className="mt-1 font-display text-xl sm:text-2xl font-semibold text-[#f7f8f8]">
-                Rechenweg &amp; Begründung: Wie entstehen die Prozentwerte 2035?
+                {transformation.calcHeadline}
               </h3>
             </div>
             <div className="flex items-center gap-4">
               <span className="font-mono-tabular text-sm font-semibold text-emerald-400">
-                Gesamtsumme = 100 %
+                Gesamtsumme = {totalShare2035} %
               </span>
               <a
                 href="#verteilung"
@@ -225,13 +190,13 @@ export function TransformationSection() {
               className="flex h-5 w-full overflow-hidden rounded-full border border-white/[0.1] bg-white/[0.04] p-0.5 gap-0.5"
               aria-label="Prozentverteilung der 6 Zukunfts-Milieus 2035 (Summe 100 %)"
             >
-              {SHARE_SEGMENTS.map((m) => (
+              {shareSegments.map((m) => (
                 <div
                   key={m.id}
                   title={`${m.shortName}: ${m.share2035} %`}
                   className="h-full first:rounded-l-full last:rounded-r-full transition-opacity hover:opacity-85"
                   style={{
-                    width: `${m.share2035}%`,
+                    width: `${totalShare2035 > 0 ? (m.share2035 / totalShare2035) * 100 : 16.6}%`,
                     backgroundColor: m.colorHex,
                   }}
                 />
@@ -239,7 +204,7 @@ export function TransformationSection() {
             </motion.div>
 
             <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
-              {SHARE_SEGMENTS.map((m) => {
+              {shareSegments.map((m) => {
                 const MIcon = getMilieuIcon(m.id);
                 return (
                   <div
@@ -270,8 +235,8 @@ export function TransformationSection() {
 
           {/* 4 concise calculation items with domain icons */}
           <div className="mt-7 grid grid-cols-1 gap-x-8 gap-y-6 border-t border-white/[0.08] pt-7 md:grid-cols-2">
-            {CALCULATION_STEPS.map((item, idx) => {
-              const StepIcon = item.icon;
+            {transformation.calcSteps.map((item, idx) => {
+              const StepIcon = CALC_STEP_ICONS[idx % CALC_STEP_ICONS.length];
               return (
                 <motion.div
                   key={item.number}
@@ -332,11 +297,10 @@ export function TransformationSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.08] px-6 py-6 sm:px-8">
             <div>
               <h3 className="font-display text-xl font-semibold text-[#f7f8f8]">
-                Systemvergleich: SINUS 2026 vs. Transformation 2035
+                {transformation.compHeadline}
               </h3>
               <p className="mt-1 text-sm text-[#9ea4b0]">
-                Wie sich Raumdimensionen, Milieuzahl und soziale Durchlässigkeit
-                in neun Jahren verschieben
+                {transformation.compDescription}
               </p>
             </div>
 
@@ -375,10 +339,10 @@ export function TransformationSection() {
 
           {/* Mobile stacked comparison cards */}
           <div className="divide-y divide-white/[0.06] md:hidden">
-            {COMPARISON_ROWS.map((row, idx) => {
+            {transformation.comparisonRows.map((row, idx) => {
               const DimIcon = DIMENSION_ICONS[idx % DIMENSION_ICONS.length];
               return (
-                <div key={row.criterion} className="p-5 space-y-3">
+                <div key={`${row.criterion}-${idx}`} className="p-5 space-y-3">
                   <div className="flex items-center gap-2.5">
                     <DimIcon className="h-4 w-4 text-[#8a8f98]" aria-hidden="true" />
                     <span className="text-base font-semibold text-[#f7f8f8]">
@@ -439,11 +403,11 @@ export function TransformationSection() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.06]">
-                {COMPARISON_ROWS.map((row, idx) => {
+                {transformation.comparisonRows.map((row, idx) => {
                   const DimIcon = DIMENSION_ICONS[idx % DIMENSION_ICONS.length];
                   return (
                     <tr
-                      key={row.criterion}
+                      key={`${row.criterion}-${idx}`}
                       className="align-top transition-colors hover:bg-white/[0.025]"
                     >
                       <td className="py-5 pl-6 sm:pl-8 pr-4">

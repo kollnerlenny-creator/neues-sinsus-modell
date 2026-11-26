@@ -2,7 +2,8 @@ import { Check, Copy, Link2, Share2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import sharePreviewImg from '../assets/images/sinus_share_preview_1795621646525.jpg';
-import { MILIEUS, type ModelMode } from '../data/milieus';
+import { useSiteContent } from '../context/ContentContext';
+import type { ModelMode } from '../data/milieus';
 import type { SelectionPayload } from '../three/SinusSceneManager';
 
 interface SharePreviewModalProps {
@@ -18,6 +19,9 @@ export function SharePreviewModal({
   mode,
   selection,
 }: SharePreviewModalProps) {
+  const { content } = useSiteContent();
+  const milieus2035 = content.milieus_2035.milieus;
+  const milieus2026 = content.milieus_2026.classicMilieus;
   const [includeViewState, setIncludeViewState] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -49,11 +53,15 @@ export function SharePreviewModal({
 
   const previewTitle = useMemo(() => {
     if (includeViewState && selection?.kind === '2035') {
-      const m = MILIEUS.find((item) => item.id === selection.id);
+      const m = milieus2035.find((item) => item.id === selection.id);
       if (m) return `${m.name} (${m.share2035} %) · SINUS 2035`;
     }
+    if (includeViewState && selection?.kind === '2026') {
+      const c = milieus2026.find((item) => item.id === selection.id);
+      if (c) return `${c.name} (${c.share2026} %) · SINUS 2026`;
+    }
     return 'SOZIALSTRUKTUR DEUTSCHLAND 2035 – Das schwebende 3D-SINUS-Modell';
-  }, [includeViewState, selection]);
+  }, [includeViewState, selection, milieus2035, milieus2026]);
 
   const hostLabel = useMemo(() => {
     if (!shareUrl) return 'sinus2035.app';

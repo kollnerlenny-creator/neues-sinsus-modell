@@ -1,5 +1,6 @@
 import { MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AdminPanelModal } from './components/AdminPanelModal';
 import { DistributionSection } from './components/DistributionSection';
 import { Hero3DStage } from './components/Hero3DStage';
 import { HeroHookSection } from './components/HeroHookSection';
@@ -9,12 +10,8 @@ import { Navbar } from './components/Navbar';
 import { SelfTestSection } from './components/SelfTestSection';
 import { SharePreviewModal } from './components/SharePreviewModal';
 import { TransformationSection } from './components/TransformationSection';
-import {
-  CLASSIC_MILIEUS_2026,
-  MILIEUS,
-  type MilieuId,
-  type ModelMode,
-} from './data/milieus';
+import { useSiteContent } from './context/ContentContext';
+import type { MilieuId, ModelMode } from './data/milieus';
 import {
   SinusSceneManager,
   type ProjectedLabelPosition,
@@ -34,12 +31,22 @@ function shouldSkipIntroOnLoad(): boolean {
   const params = new URLSearchParams(window.location.search);
   return (
     params.get('autostart') === '1' ||
+    params.get('admin') === '1' ||
+    window.location.hash === '#admin' ||
     params.has('milieu') ||
     params.has('umfrage')
   );
 }
 
+function shouldOpenAdminOnLoad(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('admin') === '1' || window.location.hash === '#admin';
+}
+
 export default function App() {
+  const { content } = useSiteContent();
+  const initialContentRef = useRef(content);
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SinusSceneManager | null>(null);
   const userMarkerLabelRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +57,7 @@ export default function App() {
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
   const [contextLost, setContextLost] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState<boolean>(() => shouldOpenAdminOnLoad());
   const [userResultCoords, setUserResultCoords] = useState<{
     uX: number;
     uY: number;
@@ -113,12 +121,22 @@ export default function App() {
     const mountEl = canvasMountRef.current;
     if (!mountEl) return;
 
-    const manager = new SinusSceneManager(mountEl, {
-      onSelect: (sel) => setSelection(sel),
-      onHover: () => {},
-      onLabelsFrame: handleLabelsFrame,
-      onContextLost: (lost) => setContextLost(lost),
-    });
+    const initContent = initialContentRef.current;
+    const manager = new SinusSceneManager(
+      mountEl,
+      {
+        onSelect: (sel) => setSelection(sel),
+        onHover: () => {},
+        onLabelsFrame: handleLabelsFrame,
+        onContextLost: (lost) => setContextLost(lost),
+      },
+      {
+        milieus: initContent.milieus_2035.milieus,
+        classicMilieus: initContent.milieus_2026.classicMilieus,
+        axisLabels: initContent.axes_rifts.axisLabels,
+        riftLines: initContent.axes_rifts.riftLines,
+      },
+    );
     sceneRef.current = manager;
 
     // Support shared deep-link query parameters (?mode=2026&kind=2035&milieu=avantgarde)
@@ -135,14 +153,14 @@ export default function App() {
     if (paramMilieu) {
       if (
         (paramKind === '2026' || paramMode === '2026') &&
-        CLASSIC_MILIEUS_2026.some((c) => c.id === paramMilieu)
+        initContent.milieus_2026.classicMilieus.some((c) => c.id === paramMilieu)
       ) {
         const sel: SelectionPayload = { kind: '2026', id: paramMilieu };
         setMode('2026');
         manager.setMode('2026');
         setSelection(sel);
         manager.applySelection(sel, true);
-      } else if (MILIEUS.some((m) => m.id === paramMilieu)) {
+      } else if (initContent.milieus_2035.milieus.some((m) => m.id === paramMilieu)) {
         const sel: SelectionPayload = {
           kind: '2035',
           id: paramMilieu as MilieuId,
@@ -170,6 +188,16 @@ export default function App() {
       sceneRef.current = null;
     };
   }, [handleLabelsFrame]);
+
+  // Live-sync Firestore CMS edits into the mounted Three.js scene
+  useEffect(() => {
+    sceneRef.current?.updateSceneData({
+      milieus: content.milieus_2035.milieus,
+      classicMilieus: content.milieus_2026.classicMilieus,
+      axisLabels: content.axes_rifts.axisLabels,
+      riftLines: content.axes_rifts.riftLines,
+    });
+  }, [content.milieus_2035, content.milieus_2026, content.axes_rifts]);
 
   const handleChangeMode = useCallback((nextMode: ModelMode) => {
     setMode(nextMode);
@@ -201,20 +229,22 @@ export default function App() {
 
   const handleStep2035 = useCallback(
     (dir: -1 | 1) => {
+      const list = content.milieus_2035.milieus;
+      if (list.length === 0) return;
       const idx =
         selection?.kind === '2035'
-          ? MILIEUS.findIndex((m) => m.id === selection.id)
+          ? list.findIndex((m) => m.id === selection.id)
           : -1;
       const nextIdx =
-        idx === -1 ? 0 : (idx + dir + MILIEUS.length) % MILIEUS.length;
+        idx === -1 ? 0 : (idx + dir + list.length) % list.length;
       const nextSel: SelectionPayload = {
         kind: '2035',
-        id: MILIEUS[nextIdx].id,
+        id: list[nextIdx].id,
       };
       setSelection(nextSel);
       sceneRef.current?.applySelection(nextSel, true);
     },
-    [selection],
+    [selection, content.milieus_2035.milieus],
   );
 
   const handleFocusMilieuFromGrid = useCallback((id: MilieuId) => {
@@ -260,7 +290,10 @@ export default function App() {
         />
 
         <div className="relative z-10">
-          <Navbar onOpenShare={() => setShareOpen(true)} />
+          <Navbar
+            onOpenShare={() => setShareOpen(true)}
+            onOpenAdmin={() => setAdminOpen(true)}
+          />
 
           <main>
             <HeroHookSection />
@@ -299,10 +332,8 @@ export default function App() {
 
           <footer className="border-t border-white/[0.06] py-10">
             <div className="mx-auto flex max-w-[1280px] flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 text-sm text-[#8a8f98] text-center sm:text-left">
-              <span>
-                SOZIALSTRUKTUR DEUTSCHLAND 2035 · Das schwebende 3D-SINUS-Modell
-              </span>
-              <span>Gemeinschaftskunde / GRW · Klasse 12</span>
+              <span>{content.meta.footerLeft}</span>
+              <span>{content.meta.footerRight}</span>
             </div>
           </footer>
         </div>
@@ -313,6 +344,8 @@ export default function App() {
           mode={mode}
           selection={selection}
         />
+
+        <AdminPanelModal open={adminOpen} onClose={() => setAdminOpen(false)} />
       </div>
     </MotionConfig>
   );

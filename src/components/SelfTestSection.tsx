@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSiteContent } from '../context/ContentContext';
 import type { MilieuId } from '../data/milieus';
 import {
   checkAlreadySubmitted,
@@ -21,11 +22,7 @@ import {
   type SurveyResponseDoc,
 } from '../services/liveSurvey';
 import { getMilieuIcon } from '../utils/milieuIcons';
-import {
-  calculateSelfTestResult,
-  SELF_TEST_QUESTIONS,
-  SELF_TEST_SCALE_OPTIONS,
-} from '../utils/selfTest';
+import { calculateSelfTestResult } from '../utils/selfTest';
 import { LiveSurveyHostPanel } from './LiveSurveyHostPanel';
 
 interface SelfTestSectionProps {
@@ -66,9 +63,13 @@ export function SelfTestSection({
   const advanceTimerRef = useRef<number | null>(null);
   const submittedForRoomRef = useRef<string | null>(null);
 
-  const totalQuestions = SELF_TEST_QUESTIONS.length;
+  const { content } = useSiteContent();
+  const selfTest = content.self_test;
+  const milieus = content.milieus_2035.milieus;
+
+  const totalQuestions = selfTest.questions.length;
   const isResultStep = step >= totalQuestions;
-  const currentQuestion = !isResultStep ? SELF_TEST_QUESTIONS[step] : null;
+  const currentQuestion = !isResultStep ? selfTest.questions[step] : null;
   const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
 
   useEffect(() => {
@@ -81,8 +82,20 @@ export function SelfTestSection({
 
   const result = useMemo(() => {
     if (!isResultStep) return null;
-    return calculateSelfTestResult(answers);
-  }, [isResultStep, answers]);
+    return calculateSelfTestResult(answers, {
+      questions: selfTest.questions,
+      milieus,
+      idealCoords: selfTest.idealCoords,
+      secondSentences: selfTest.secondSentences,
+    });
+  }, [
+    isResultStep,
+    answers,
+    selfTest.questions,
+    milieus,
+    selfTest.idealCoords,
+    selfTest.secondSentences,
+  ]);
 
   const progressPercent = isResultStep
     ? 100
@@ -281,14 +294,13 @@ export function SelfTestSection({
           className="text-center max-w-2xl mx-auto"
         >
           <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-            05 · Interaktive Standortbestimmung &amp; Klassen-Umfrage
+            {selfTest.eyebrow}
           </p>
           <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-            Milieu-Selbsttest 2035: Wo stehst du in 10 Jahren?
+            {selfTest.headline}
           </h2>
           <p className="mt-3.5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            Bestimme deinen eigenen Standort im 3D-Raum oder starte eine
-            Live-Umfrage per QR-Code für den ganzen Kurs.
+            {selfTest.description}
           </p>
 
           {/* Clean Live Survey Action Controls */}
@@ -473,7 +485,7 @@ export function SelfTestSection({
                     </h3>
 
                     <div className="mt-7 flex flex-col-reverse gap-2.5 sm:grid sm:grid-cols-5 sm:gap-3">
-                      {SELF_TEST_SCALE_OPTIONS.map((opt) => {
+                      {selfTest.scaleOptions.map((opt) => {
                         const selected = currentAnswer === opt.value;
                         return (
                           <button

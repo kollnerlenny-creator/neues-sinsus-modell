@@ -1,34 +1,13 @@
 import { ArrowDown, Compass, Layers, MoveVertical, Users } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useSiteContent } from '../context/ContentContext';
 
-const HOOK_SHIFTS = [
-  {
-    icon: Layers,
-    metric: '10 → 6 Milieus',
-    title: 'Verdichtung der Lebenswelten',
-    detail:
-      'Aus zehn vielfältigen Alltagsstilen entstehen sechs scharf abgegrenzte Strukturblöcke.',
-    accent: '#f7f8f8',
-  },
-  {
-    icon: MoveVertical,
-    metric: 'Z-Achse · 0–100',
-    title: 'Neue Höhe: Krisenresilienz',
-    detail:
-      'Bildung, Eigentum und KI-Kompetenz bestimmen, welches Milieu 2035 schwebt oder absinkt.',
-    accent: '#34d399',
-  },
-  {
-    icon: Users,
-    metric: '24 % Senioren',
-    title: 'Demografischer Kipp-Punkt',
-    detail:
-      'Mit den Babyboomern wird die traditionelle Senioren-Mehrheit zur größten Gruppe im Land.',
-    accent: '#a78bfa',
-  },
-];
+const SHIFT_ICONS = [Layers, MoveVertical, Users];
 
 export function HeroHookSection() {
+  const { content } = useSiteContent();
+  const { meta } = content;
+
   return (
     <section
       id="einstieg"
@@ -58,17 +37,15 @@ export function HeroHookSection() {
           className="mx-auto max-w-4xl text-center"
         >
           <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-            Sozialstruktur Deutschland · Zukunftsstudie 2026 → 2035
+            {meta.heroEyebrow}
           </p>
 
           <h1 className="mt-4 font-display text-4xl sm:text-6xl lg:text-[68px] font-semibold tracking-tight text-[#f7f8f8] leading-[1.04] text-balance">
-            Wohin driftet unsere Gesellschaft bis 2035?
+            {meta.heroHeadline}
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-base sm:text-xl leading-relaxed text-[#b4bac4]">
-            Zehn vertraute Lebenswelten lösen sich auf. KI-Automatisierung,
-            Klimakosten und der Renteneintritt der Babyboomer spalten das Land in
-            sechs schwebende Ebenen der Zukunftsfähigkeit.
+            {meta.heroLead}
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
@@ -77,7 +54,7 @@ export function HeroHookSection() {
               data-testid="hook-explore-3d-btn"
               className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-[#f7f8f8] px-7 py-3.5 text-sm sm:text-[15px] font-semibold text-[#040406] hover:bg-white transition-all shadow-[0_0_32px_rgba(255,255,255,0.16)]"
             >
-              <span>3D-Modell entdecken</span>
+              <span>{meta.heroExploreBtn}</span>
               <ArrowDown className="h-4 w-4" aria-hidden="true" />
             </a>
 
@@ -87,7 +64,7 @@ export function HeroHookSection() {
               className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.03] px-7 py-3.5 text-sm sm:text-[15px] font-medium text-[#e2e8f0] hover:border-white/[0.26] hover:bg-white/[0.07] hover:text-white transition-colors"
             >
               <Compass className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-              <span>Eigenen Standort testen</span>
+              <span>{meta.heroSelftestBtn}</span>
             </a>
           </div>
         </motion.div>
@@ -102,19 +79,19 @@ export function HeroHookSection() {
           {/* Minimal Linear window top bar */}
           <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-3.5 text-xs sm:text-[13px] text-[#8a8f98]">
             <span className="font-medium text-[#cbd5e1]">
-              Drei Strukturverschiebungen bis 2035
+              {meta.heroShiftsBarTitle}
             </span>
             <span className="font-mono-tabular hidden sm:inline">
-              SINUS-Raum · X × Y × Z
+              {meta.heroShiftsBarTag}
             </span>
           </div>
 
           <div className="grid grid-cols-1 divide-y md:grid-cols-3 md:divide-y-0 md:divide-x divide-white/[0.07] px-2 pt-2 pb-10 sm:pb-14">
-            {HOOK_SHIFTS.map((item, idx) => {
-              const Icon = item.icon;
+            {meta.heroShifts.map((item, idx) => {
+              const Icon = SHIFT_ICONS[idx % SHIFT_ICONS.length];
               return (
                 <motion.div
-                  key={item.metric}
+                  key={`${item.metric}-${idx}`}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
@@ -172,7 +149,7 @@ export function HeroHookSection() {
             href="#modell-3d"
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-[#8a8f98] hover:text-[#f7f8f8] transition-colors"
           >
-            <span>Nach unten scrollen für das interaktive 3D-Modell</span>
+            <span>{meta.heroScrollCue}</span>
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </a>
         </motion.div>

@@ -67,10 +67,11 @@ export function clampSurveyCoord(val: number): number {
 
 export function aggregateSurveyResults(
   responses: SurveyResponseDoc[],
+  milieus: MilieuSpec[] = MILIEUS,
 ): LiveSurveyAggregation {
   const total = responses.length;
   const counts = new Map<MilieuId, number>();
-  for (const m of MILIEUS) counts.set(m.id, 0);
+  for (const m of milieus) counts.set(m.id, 0);
 
   let sumX = 0;
   let sumY = 0;
@@ -85,7 +86,7 @@ export function aggregateSurveyResults(
     }
   }
 
-  const buckets: AggregatedMilieuBucket[] = MILIEUS.map((milieu) => {
+  const buckets: AggregatedMilieuBucket[] = milieus.map((milieu) => {
     const count = counts.get(milieu.id) ?? 0;
     const percent = total > 0 ? Math.round((count / total) * 100) : 0;
     return {

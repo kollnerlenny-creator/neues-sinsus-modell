@@ -1,6 +1,7 @@
 import { ArrowLeft, Check, Copy, Link2, PlusCircle, QrCode } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
+import { useSiteContent } from '../context/ContentContext';
 import type { MilieuId } from '../data/milieus';
 import {
   aggregateSurveyResults,
@@ -31,6 +32,8 @@ export function LiveSurveyHostPanel({
   onExitHostMode,
   onProjectAverageIn3D,
 }: LiveSurveyHostPanelProps) {
+  const { content } = useSiteContent();
+  const milieus = content.milieus_2035.milieus;
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copiedType, setCopiedType] = useState<'code' | 'link' | null>(null);
 
@@ -40,8 +43,8 @@ export function LiveSurveyHostPanel({
   }, [session.code]);
 
   const aggregation = useMemo(
-    () => aggregateSurveyResults(responses),
-    [responses],
+    () => aggregateSurveyResults(responses, milieus),
+    [responses, milieus],
   );
 
   useEffect(() => {
