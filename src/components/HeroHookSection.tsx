@@ -1,11 +1,12 @@
 import { ArrowDown, Compass, Layers, MoveVertical, Users } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useSiteContent } from '../context/ContentContext';
+import { EditableText } from './EditableText';
 
 const SHIFT_ICONS = [Layers, MoveVertical, Users];
 
 export function HeroHookSection() {
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft } = useSiteContent();
   const { meta } = content;
 
   return (
@@ -37,15 +38,32 @@ export function HeroHookSection() {
           className="mx-auto max-w-4xl text-center"
         >
           <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-            {meta.heroEyebrow}
+            <EditableText
+              value={meta.heroEyebrow}
+              onCommit={(val) =>
+                updateSectionDraft('meta', (p) => ({ ...p, heroEyebrow: val }))
+              }
+            />
           </p>
 
           <h1 className="mt-4 font-display text-4xl sm:text-6xl lg:text-[68px] font-semibold tracking-tight text-[#f7f8f8] leading-[1.04] text-balance">
-            {meta.heroHeadline}
+            <EditableText
+              value={meta.heroHeadline}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('meta', (p) => ({ ...p, heroHeadline: val }))
+              }
+            />
           </h1>
 
           <p className="mx-auto mt-6 max-w-2xl text-base sm:text-xl leading-relaxed text-[#b4bac4]">
-            {meta.heroLead}
+            <EditableText
+              value={meta.heroLead}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('meta', (p) => ({ ...p, heroLead: val }))
+              }
+            />
           </p>
 
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
@@ -54,7 +72,15 @@ export function HeroHookSection() {
               data-testid="hook-explore-3d-btn"
               className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full bg-[#f7f8f8] px-7 py-3.5 text-sm sm:text-[15px] font-semibold text-[#040406] hover:bg-white transition-all shadow-[0_0_32px_rgba(255,255,255,0.16)]"
             >
-              <span>{meta.heroExploreBtn}</span>
+              <EditableText
+                value={meta.heroExploreBtn}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    heroExploreBtn: val,
+                  }))
+                }
+              />
               <ArrowDown className="h-4 w-4" aria-hidden="true" />
             </a>
 
@@ -64,7 +90,15 @@ export function HeroHookSection() {
               className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.03] px-7 py-3.5 text-sm sm:text-[15px] font-medium text-[#e2e8f0] hover:border-white/[0.26] hover:bg-white/[0.07] hover:text-white transition-colors"
             >
               <Compass className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-              <span>{meta.heroSelftestBtn}</span>
+              <EditableText
+                value={meta.heroSelftestBtn}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    heroSelftestBtn: val,
+                  }))
+                }
+              />
             </a>
           </div>
         </motion.div>
@@ -79,10 +113,26 @@ export function HeroHookSection() {
           {/* Minimal Linear window top bar */}
           <div className="flex items-center justify-between border-b border-white/[0.07] px-6 py-3.5 text-xs sm:text-[13px] text-[#8a8f98]">
             <span className="font-medium text-[#cbd5e1]">
-              {meta.heroShiftsBarTitle}
+              <EditableText
+                value={meta.heroShiftsBarTitle}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    heroShiftsBarTitle: val,
+                  }))
+                }
+              />
             </span>
             <span className="font-mono-tabular hidden sm:inline">
-              {meta.heroShiftsBarTag}
+              <EditableText
+                value={meta.heroShiftsBarTag}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    heroShiftsBarTag: val,
+                  }))
+                }
+              />
             </span>
           </div>
 
@@ -91,7 +141,7 @@ export function HeroHookSection() {
               const Icon = SHIFT_ICONS[idx % SHIFT_ICONS.length];
               return (
                 <motion.div
-                  key={`${item.metric}-${idx}`}
+                  key={`shift-${idx}`}
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
@@ -116,15 +166,46 @@ export function HeroHookSection() {
                       className="font-mono-tabular text-sm font-semibold"
                       style={{ color: item.accent }}
                     >
-                      {item.metric}
+                      <EditableText
+                        value={item.metric}
+                        onCommit={(val) =>
+                          updateSectionDraft('meta', (p) => ({
+                            ...p,
+                            heroShifts: p.heroShifts.map((s, i) =>
+                              i === idx ? { ...s, metric: val } : s,
+                            ),
+                          }))
+                        }
+                      />
                     </span>
                   </div>
 
                   <h2 className="mt-5 font-display text-xl font-semibold text-[#f7f8f8]">
-                    {item.title}
+                    <EditableText
+                      value={item.title}
+                      onCommit={(val) =>
+                        updateSectionDraft('meta', (p) => ({
+                          ...p,
+                          heroShifts: p.heroShifts.map((s, i) =>
+                            i === idx ? { ...s, title: val } : s,
+                          ),
+                        }))
+                      }
+                    />
                   </h2>
                   <p className="mt-2 text-[15px] leading-relaxed text-[#9ea4b0]">
-                    {item.detail}
+                    <EditableText
+                      value={item.detail}
+                      multiline
+                      onCommit={(val) =>
+                        updateSectionDraft('meta', (p) => ({
+                          ...p,
+                          heroShifts: p.heroShifts.map((s, i) =>
+                            i === idx ? { ...s, detail: val } : s,
+                          ),
+                        }))
+                      }
+                    />
                   </p>
                 </motion.div>
               );
@@ -149,7 +230,12 @@ export function HeroHookSection() {
             href="#modell-3d"
             className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-[#8a8f98] hover:text-[#f7f8f8] transition-colors"
           >
-            <span>{meta.heroScrollCue}</span>
+            <EditableText
+              value={meta.heroScrollCue}
+              onCommit={(val) =>
+                updateSectionDraft('meta', (p) => ({ ...p, heroScrollCue: val }))
+              }
+            />
             <ArrowDown className="h-4 w-4" aria-hidden="true" />
           </a>
         </motion.div>

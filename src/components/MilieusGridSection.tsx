@@ -8,9 +8,10 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
-import type { MilieuId } from '../data/milieus';
+import type { MilieuId, MilieuSpec } from '../data/milieus';
 import { useSiteContent } from '../context/ContentContext';
 import { getMilieuIcon } from '../utils/milieuIcons';
+import { EditableNumber, EditableText } from './EditableText';
 
 interface MilieusGridSectionProps {
   onFocusIn3D: (id: MilieuId) => void;
@@ -19,11 +20,23 @@ interface MilieusGridSectionProps {
 type MilieuFilter = 'all' | 'high' | 'pressure';
 
 export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft } = useSiteContent();
   const { meta } = content;
   const milieus = content.milieus_2035.milieus;
   const [filter, setFilter] = useState<MilieuFilter>('all');
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+
+  const updateMilieu = (
+    id: MilieuId,
+    patch: Partial<MilieuSpec>,
+  ) => {
+    updateSectionDraft('milieus_2035', (p) => ({
+      ...p,
+      milieus: p.milieus.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    }));
+  };
 
   const visibleMilieus = milieus.filter((m) => {
     if (filter === 'high') return m.resilienceScore >= 50;
@@ -62,13 +75,36 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
         >
           <div className="max-w-3xl">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              {meta.gridEyebrow}
+              <EditableText
+                value={meta.gridEyebrow}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({ ...p, gridEyebrow: val }))
+                }
+              />
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              {meta.gridHeadline}
+              <EditableText
+                value={meta.gridHeadline}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    gridHeadline: val,
+                  }))
+                }
+              />
             </h2>
             <p className="mt-3.5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-              {meta.gridDescription}
+              <EditableText
+                value={meta.gridDescription}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    gridDescription: val,
+                  }))
+                }
+              />
             </p>
           </div>
 
@@ -143,12 +179,29 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2 text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
-                          <span style={{ color: m.colorHex }}>{m.badge2035}</span>
+                          <span style={{ color: m.colorHex }}>
+                            <EditableText
+                              value={m.badge2035}
+                              onCommit={(val) =>
+                                updateMilieu(m.id, { badge2035: val })
+                              }
+                            />
+                          </span>
                           <span aria-hidden="true">·</span>
-                          <span>{m.socialLayerLabel}</span>
+                          <span>
+                            <EditableText
+                              value={m.socialLayerLabel}
+                              onCommit={(val) =>
+                                updateMilieu(m.id, { socialLayerLabel: val })
+                              }
+                            />
+                          </span>
                         </div>
                         <h3 className="mt-1 font-display text-xl sm:text-2xl font-semibold tracking-tight text-[#f7f8f8]">
-                          {m.name}
+                          <EditableText
+                            value={m.name}
+                            onCommit={(val) => updateMilieu(m.id, { name: val })}
+                          />
                         </h3>
                       </div>
                     </div>
@@ -157,7 +210,15 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                       <span className="text-[#9ea4b0]">
                         Z{' '}
                         <strong className="text-[#f7f8f8]">
-                          {m.resilienceScore}/100
+                          <EditableNumber
+                            value={m.resilienceScore}
+                            min={0}
+                            max={100}
+                            suffix="/100"
+                            onCommit={(val) =>
+                              updateMilieu(m.id, { resilienceScore: val })
+                            }
+                          />
                         </strong>
                       </span>
                       <span className="text-white/20" aria-hidden="true">
@@ -167,7 +228,16 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                         className="text-base font-semibold"
                         style={{ color: m.colorHex }}
                       >
-                        {m.share2035} %
+                        <EditableNumber
+                          value={m.share2035}
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          suffix=" %"
+                          onCommit={(val) =>
+                            updateMilieu(m.id, { share2035: val })
+                          }
+                        />
                       </span>
                     </div>
                   </div>
@@ -193,7 +263,13 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                   </div>
 
                   <p className="mt-5 text-[15px] sm:text-base leading-relaxed text-[#e2e8f0]">
-                    {m.causalChainSummary}
+                    <EditableText
+                      value={m.causalChainSummary}
+                      multiline
+                      onCommit={(val) =>
+                        updateMilieu(m.id, { causalChainSummary: val })
+                      }
+                    />
                   </p>
 
                   {/* Clean Origin Note */}
@@ -206,7 +282,13 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                       <span className="font-semibold text-[#e2e8f0]">
                         Herkunft 2026:
                       </span>{' '}
-                      {m.originFrom2026}
+                      <EditableText
+                        value={m.originFrom2026}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu(m.id, { originFrom2026: val })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -222,7 +304,13 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                       >
                         <div className="mt-5 space-y-4 border-t border-white/[0.08] pt-5">
                           <p className="text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                            {m.detailedProfile}
+                            <EditableText
+                              value={m.detailedProfile}
+                              multiline
+                              onCommit={(val) =>
+                                updateMilieu(m.id, { detailedProfile: val })
+                              }
+                            />
                           </p>
 
                           <div>
@@ -233,11 +321,28 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                                 aria-hidden="true"
                               />
                               <span>
-                                Resilienz-Mechanismus 2035 ({m.resilienceRatingLabel})
+                                Resilienz-Mechanismus 2035 (
+                                <EditableText
+                                  value={m.resilienceRatingLabel}
+                                  onCommit={(val) =>
+                                    updateMilieu(m.id, {
+                                      resilienceRatingLabel: val,
+                                    })
+                                  }
+                                />
+                                )
                               </span>
                             </div>
                             <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#b4bac4]">
-                              {m.resilienceMechanism}
+                              <EditableText
+                                value={m.resilienceMechanism}
+                                multiline
+                                onCommit={(val) =>
+                                  updateMilieu(m.id, {
+                                    resilienceMechanism: val,
+                                  })
+                                }
+                              />
                             </p>
                           </div>
 
@@ -251,7 +356,15 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                                 <span>Typische Lebensrealität</span>
                               </div>
                               <p className="mt-1.5 text-sm leading-relaxed text-[#9ea4b0]">
-                                {m.everydayExamples}
+                                <EditableText
+                                  value={m.everydayExamples}
+                                  multiline
+                                  onCommit={(val) =>
+                                    updateMilieu(m.id, {
+                                      everydayExamples: val,
+                                    })
+                                  }
+                                />
                               </p>
                             </div>
                             <div>
@@ -263,7 +376,13 @@ export function MilieusGridSection({ onFocusIn3D }: MilieusGridSectionProps) {
                                 <span>Gesellschaftliche Konfliktlinie</span>
                               </div>
                               <p className="mt-1.5 text-sm leading-relaxed text-[#9ea4b0]">
-                                {m.conflictLine}
+                                <EditableText
+                                  value={m.conflictLine}
+                                  multiline
+                                  onCommit={(val) =>
+                                    updateMilieu(m.id, { conflictLine: val })
+                                  }
+                                />
                               </p>
                             </div>
                           </div>

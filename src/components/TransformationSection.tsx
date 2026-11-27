@@ -16,7 +16,9 @@ import {
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { useSiteContent } from '../context/ContentContext';
+import type { MilieuId } from '../data/milieus';
 import { getMilieuIcon } from '../utils/milieuIcons';
+import { EditableNumber, EditableText } from './EditableText';
 
 type MatrixFocus = 'both' | '2026' | '2035';
 type DetailTab = 'calculation' | 'comparison';
@@ -26,11 +28,23 @@ const CALC_STEP_ICONS = [Users, Cpu, Flame, TrendingUp];
 const DIMENSION_ICONS = [Box, Hash, GitFork, Compass, Scale];
 
 export function TransformationSection() {
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft } = useSiteContent();
   const { transformation } = content;
   const milieus = content.milieus_2035.milieus;
   const [focus, setFocus] = useState<MatrixFocus>('both');
   const [activeTab, setActiveTab] = useState<DetailTab>('calculation');
+
+  const updateMilieu = (
+    id: MilieuId,
+    patch: Partial<{ shortName: string; share2035: number }>,
+  ) => {
+    updateSectionDraft('milieus_2035', (p) => ({
+      ...p,
+      milieus: p.milieus.map((item) =>
+        item.id === id ? { ...item, ...patch } : item,
+      ),
+    }));
+  };
 
   const shareSegments = useMemo(
     () => [...milieus].sort((a, b) => b.share2035 - a.share2035),
@@ -56,14 +70,40 @@ export function TransformationSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              {transformation.eyebrow}
+              <EditableText
+                value={transformation.eyebrow}
+                onCommit={(val) =>
+                  updateSectionDraft('transformation', (p) => ({
+                    ...p,
+                    eyebrow: val,
+                  }))
+                }
+              />
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              {transformation.headline}
+              <EditableText
+                value={transformation.headline}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('transformation', (p) => ({
+                    ...p,
+                    headline: val,
+                  }))
+                }
+              />
             </h2>
           </div>
           <p className="lg:col-span-5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            {transformation.description}
+            <EditableText
+              value={transformation.description}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('transformation', (p) => ({
+                  ...p,
+                  description: val,
+                }))
+              }
+            />
           </p>
         </motion.div>
 
@@ -96,14 +136,45 @@ export function TransformationSection() {
                       <ArgIcon className="h-5 w-5" aria-hidden="true" />
                     </div>
                     <span className="font-mono-tabular text-xs font-semibold text-[#62666d]">
-                      {arg.number}
+                      <EditableText
+                        value={arg.number}
+                        onCommit={(val) =>
+                          updateSectionDraft('transformation', (p) => ({
+                            ...p,
+                            arguments: p.arguments.map((a, i) =>
+                              i === idx ? { ...a, number: val } : a,
+                            ),
+                          }))
+                        }
+                      />
                     </span>
                   </div>
                   <h3 className="mt-5 font-display text-xl font-semibold leading-snug text-[#f7f8f8]">
-                    {arg.title}
+                    <EditableText
+                      value={arg.title}
+                      onCommit={(val) =>
+                        updateSectionDraft('transformation', (p) => ({
+                          ...p,
+                          arguments: p.arguments.map((a, i) =>
+                            i === idx ? { ...a, title: val } : a,
+                          ),
+                        }))
+                      }
+                    />
                   </h3>
                   <p className="mt-3 text-[15px] sm:text-base leading-relaxed text-[#b4bac4]">
-                    {arg.body}
+                    <EditableText
+                      value={arg.body}
+                      multiline
+                      onCommit={(val) =>
+                        updateSectionDraft('transformation', (p) => ({
+                          ...p,
+                          arguments: p.arguments.map((a, i) =>
+                            i === idx ? { ...a, body: val } : a,
+                          ),
+                        }))
+                      }
+                    />
                   </p>
                 </div>
               </motion.div>
@@ -159,10 +230,26 @@ export function TransformationSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs sm:text-sm font-medium text-[#9ea4b0]">
-                {transformation.calcEyebrow}
+                <EditableText
+                  value={transformation.calcEyebrow}
+                  onCommit={(val) =>
+                    updateSectionDraft('transformation', (p) => ({
+                      ...p,
+                      calcEyebrow: val,
+                    }))
+                  }
+                />
               </p>
               <h3 className="mt-1 font-display text-xl sm:text-2xl font-semibold text-[#f7f8f8]">
-                {transformation.calcHeadline}
+                <EditableText
+                  value={transformation.calcHeadline}
+                  onCommit={(val) =>
+                    updateSectionDraft('transformation', (p) => ({
+                      ...p,
+                      calcHeadline: val,
+                    }))
+                  }
+                />
               </h3>
             </div>
             <div className="flex items-center gap-4">
@@ -218,14 +305,28 @@ export function TransformationSection() {
                         aria-hidden="true"
                       />
                       <span className="truncate text-xs sm:text-[13px] font-medium text-[#cbd5e1]">
-                        {m.shortName}
+                        <EditableText
+                          value={m.shortName}
+                          onCommit={(val) =>
+                            updateMilieu(m.id, { shortName: val })
+                          }
+                        />
                       </span>
                     </div>
                     <span
                       className="font-mono-tabular text-sm font-semibold shrink-0"
                       style={{ color: m.colorHex }}
                     >
-                      {m.share2035}%
+                      <EditableNumber
+                        value={m.share2035}
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        suffix="%"
+                        onCommit={(val) =>
+                          updateMilieu(m.id, { share2035: val })
+                        }
+                      />
                     </span>
                   </div>
                 );
@@ -263,20 +364,61 @@ export function TransformationSection() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-2.5">
                       <span className="font-mono-tabular text-xs font-semibold text-[#62666d]">
-                        {item.number}
+                        <EditableText
+                          value={item.number}
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              calcSteps: p.calcSteps.map((s, i) =>
+                                i === idx ? { ...s, number: val } : s,
+                              ),
+                            }))
+                          }
+                        />
                       </span>
                       <span className="text-base font-semibold text-[#f7f8f8]">
-                        {item.title}
+                        <EditableText
+                          value={item.title}
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              calcSteps: p.calcSteps.map((s, i) =>
+                                i === idx ? { ...s, title: val } : s,
+                              ),
+                            }))
+                          }
+                        />
                       </span>
                       <span
                         className="font-mono-tabular text-sm font-semibold"
                         style={{ color: item.color }}
                       >
-                        {item.delta}
+                        <EditableText
+                          value={item.delta}
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              calcSteps: p.calcSteps.map((s, i) =>
+                                i === idx ? { ...s, delta: val } : s,
+                              ),
+                            }))
+                          }
+                        />
                       </span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#b4bac4]">
-                      {item.summary}
+                      <EditableText
+                        value={item.summary}
+                        multiline
+                        onCommit={(val) =>
+                          updateSectionDraft('transformation', (p) => ({
+                            ...p,
+                            calcSteps: p.calcSteps.map((s, i) =>
+                              i === idx ? { ...s, summary: val } : s,
+                            ),
+                          }))
+                        }
+                      />
                     </p>
                   </div>
                 </motion.div>
@@ -297,10 +439,27 @@ export function TransformationSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-white/[0.08] px-6 py-6 sm:px-8">
             <div>
               <h3 className="font-display text-xl font-semibold text-[#f7f8f8]">
-                {transformation.compHeadline}
+                <EditableText
+                  value={transformation.compHeadline}
+                  onCommit={(val) =>
+                    updateSectionDraft('transformation', (p) => ({
+                      ...p,
+                      compHeadline: val,
+                    }))
+                  }
+                />
               </h3>
               <p className="mt-1 text-sm text-[#9ea4b0]">
-                {transformation.compDescription}
+                <EditableText
+                  value={transformation.compDescription}
+                  multiline
+                  onCommit={(val) =>
+                    updateSectionDraft('transformation', (p) => ({
+                      ...p,
+                      compDescription: val,
+                    }))
+                  }
+                />
               </p>
             </div>
 
@@ -346,7 +505,17 @@ export function TransformationSection() {
                   <div className="flex items-center gap-2.5">
                     <DimIcon className="h-4 w-4 text-[#8a8f98]" aria-hidden="true" />
                     <span className="text-base font-semibold text-[#f7f8f8]">
-                      {row.criterion}
+                      <EditableText
+                        value={row.criterion}
+                        onCommit={(val) =>
+                          updateSectionDraft('transformation', (p) => ({
+                            ...p,
+                            comparisonRows: p.comparisonRows.map((r, i) =>
+                              i === idx ? { ...r, criterion: val } : r,
+                            ),
+                          }))
+                        }
+                      />
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-3 text-sm">
@@ -359,7 +528,18 @@ export function TransformationSection() {
                         2026 · 2D-Modell (10 Milieus)
                       </div>
                       <p className="mt-1 leading-relaxed text-[#cbd5e1]">
-                        {row.model2026}
+                        <EditableText
+                          value={row.model2026}
+                          multiline
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              comparisonRows: p.comparisonRows.map((r, i) =>
+                                i === idx ? { ...r, model2026: val } : r,
+                              ),
+                            }))
+                          }
+                        />
                       </p>
                     </div>
                     <div
@@ -371,7 +551,18 @@ export function TransformationSection() {
                         2035 · Schwebendes 3D-Modell (6 Milieus)
                       </div>
                       <p className="mt-1 leading-relaxed text-[#f7f8f8]">
-                        {row.model2035}
+                        <EditableText
+                          value={row.model2035}
+                          multiline
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              comparisonRows: p.comparisonRows.map((r, i) =>
+                                i === idx ? { ...r, model2035: val } : r,
+                              ),
+                            }))
+                          }
+                        />
                       </p>
                     </div>
                   </div>
@@ -417,7 +608,17 @@ export function TransformationSection() {
                             aria-hidden="true"
                           />
                           <span className="font-semibold text-[#f7f8f8]">
-                            {row.criterion}
+                            <EditableText
+                              value={row.criterion}
+                              onCommit={(val) =>
+                                updateSectionDraft('transformation', (p) => ({
+                                  ...p,
+                                  comparisonRows: p.comparisonRows.map((r, i) =>
+                                    i === idx ? { ...r, criterion: val } : r,
+                                  ),
+                                }))
+                              }
+                            />
                           </span>
                         </div>
                       </td>
@@ -426,14 +627,36 @@ export function TransformationSection() {
                           focus === '2035' ? 'opacity-35' : 'opacity-100'
                         }`}
                       >
-                        {row.model2026}
+                        <EditableText
+                          value={row.model2026}
+                          multiline
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              comparisonRows: p.comparisonRows.map((r, i) =>
+                                i === idx ? { ...r, model2026: val } : r,
+                              ),
+                            }))
+                          }
+                        />
                       </td>
                       <td
                         className={`py-5 pl-5 pr-6 sm:pr-8 leading-relaxed bg-white/[0.025] text-[#f7f8f8] transition-opacity duration-200 ${
                           focus === '2026' ? 'opacity-35' : 'opacity-100'
                         }`}
                       >
-                        {row.model2035}
+                        <EditableText
+                          value={row.model2035}
+                          multiline
+                          onCommit={(val) =>
+                            updateSectionDraft('transformation', (p) => ({
+                              ...p,
+                              comparisonRows: p.comparisonRows.map((r, i) =>
+                                i === idx ? { ...r, model2035: val } : r,
+                              ),
+                            }))
+                          }
+                        />
                       </td>
                     </tr>
                   );

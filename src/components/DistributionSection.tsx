@@ -13,11 +13,12 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { useSiteContent } from '../context/ContentContext';
 import { getMilieuIcon } from '../utils/milieuIcons';
+import { EditableNumber, EditableText } from './EditableText';
 
 const SHIFT_ICONS = [Users, Cpu, Flame, Layers];
 
 export function DistributionSection() {
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft } = useSiteContent();
   const { distribution } = content;
   const milieus = content.milieus_2035.milieus;
   const [expandedShifts, setExpandedShifts] = useState<Record<string, boolean>>({
@@ -52,14 +53,40 @@ export function DistributionSection() {
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              {distribution.eyebrow}
+              <EditableText
+                value={distribution.eyebrow}
+                onCommit={(val) =>
+                  updateSectionDraft('distribution', (p) => ({
+                    ...p,
+                    eyebrow: val,
+                  }))
+                }
+              />
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-              {distribution.headline}
+              <EditableText
+                value={distribution.headline}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('distribution', (p) => ({
+                    ...p,
+                    headline: val,
+                  }))
+                }
+              />
             </h2>
           </div>
           <p className="lg:col-span-5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            {distribution.description}
+            <EditableText
+              value={distribution.description}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('distribution', (p) => ({
+                  ...p,
+                  description: val,
+                }))
+              }
+            />
           </p>
         </motion.div>
 
@@ -73,7 +100,7 @@ export function DistributionSection() {
         >
           {sorted2035.map((m, idx) => {
             const Icon = getMilieuIcon(m.id);
-            const diff = m.share2035 - m.share2026;
+            const diff = Math.round((m.share2035 - m.share2026) * 10) / 10;
             const diffLabel = diff > 0 ? `+${diff} %` : diff < 0 ? `${diff} %` : '±0 %';
             return (
               <motion.div
@@ -102,10 +129,40 @@ export function DistributionSection() {
                     </div>
                     <div className="min-w-0">
                       <div className="truncate text-[15px] font-semibold text-[#f7f8f8]">
-                        {m.shortName}
+                        <EditableText
+                          value={m.shortName}
+                          onCommit={(val) =>
+                            updateSectionDraft('milieus_2035', (p) => ({
+                              ...p,
+                              milieus: p.milieus.map((item) =>
+                                item.id === m.id
+                                  ? { ...item, shortName: val }
+                                  : item,
+                              ),
+                            }))
+                          }
+                        />
                       </div>
                       <div className="font-mono-tabular text-xs text-[#8a8f98]">
-                        2026: {m.share2026} % ({diffLabel})
+                        2026:{' '}
+                        <EditableNumber
+                          value={m.share2026}
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          suffix=" %"
+                          onCommit={(val) =>
+                            updateSectionDraft('milieus_2035', (p) => ({
+                              ...p,
+                              milieus: p.milieus.map((item) =>
+                                item.id === m.id
+                                  ? { ...item, share2026: val }
+                                  : item,
+                              ),
+                            }))
+                          }
+                        />{' '}
+                        ({diffLabel})
                       </div>
                     </div>
                   </div>
@@ -113,7 +170,23 @@ export function DistributionSection() {
                     className="font-mono-tabular text-2xl font-semibold shrink-0"
                     style={{ color: m.colorHex }}
                   >
-                    {m.share2035} %
+                    <EditableNumber
+                      value={m.share2035}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      suffix=" %"
+                      onCommit={(val) =>
+                        updateSectionDraft('milieus_2035', (p) => ({
+                          ...p,
+                          milieus: p.milieus.map((item) =>
+                            item.id === m.id
+                              ? { ...item, share2035: val }
+                              : item,
+                          ),
+                        }))
+                      }
+                    />
                   </div>
                 </div>
 
@@ -166,7 +239,7 @@ export function DistributionSection() {
 
             return (
               <motion.div
-                key={item.number}
+                key={`shift-${idx}`}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.1 }}
@@ -193,21 +266,64 @@ export function DistributionSection() {
                       </div>
                       <div className="flex items-center gap-2 text-xs sm:text-[13px] font-medium text-[#9ea4b0]">
                         <span className="font-mono-tabular text-[#62666d]">
-                          {item.number}
+                          <EditableText
+                            value={item.number}
+                            onCommit={(val) =>
+                              updateSectionDraft('distribution', (p) => ({
+                                ...p,
+                                causalShifts: p.causalShifts.map((c, i) =>
+                                  i === idx ? { ...c, number: val } : c,
+                                ),
+                              }))
+                            }
+                          />
                         </span>
                         <span aria-hidden="true">·</span>
-                        <span className="text-[#cbd5e1]">{item.tag}</span>
+                        <span className="text-[#cbd5e1]">
+                          <EditableText
+                            value={item.tag}
+                            onCommit={(val) =>
+                              updateSectionDraft('distribution', (p) => ({
+                                ...p,
+                                causalShifts: p.causalShifts.map((c, i) =>
+                                  i === idx ? { ...c, tag: val } : c,
+                                ),
+                              }))
+                            }
+                          />
+                        </span>
                       </div>
                     </div>
 
                     <h3 className="mt-4 font-display text-xl sm:text-2xl font-semibold leading-snug text-[#f7f8f8]">
-                      {item.question}
+                      <EditableText
+                        value={item.question}
+                        multiline
+                        onCommit={(val) =>
+                          updateSectionDraft('distribution', (p) => ({
+                            ...p,
+                            causalShifts: p.causalShifts.map((c, i) =>
+                              i === idx ? { ...c, question: val } : c,
+                            ),
+                          }))
+                        }
+                      />
                     </h3>
                   </div>
 
                   <div className="inline-flex flex-wrap items-center gap-3 self-start rounded-xl border border-white/[0.09] bg-white/[0.025] px-4 py-2.5">
                     <span className="font-mono-tabular text-base font-semibold text-[#f7f8f8]">
-                      {item.transition}
+                      <EditableText
+                        value={item.transition}
+                        onCommit={(val) =>
+                          updateSectionDraft('distribution', (p) => ({
+                            ...p,
+                            causalShifts: p.causalShifts.map((c, i) =>
+                              i === idx ? { ...c, transition: val } : c,
+                            ),
+                          }))
+                        }
+                      />
                     </span>
                     <span className="text-white/20" aria-hidden="true">
                       |
@@ -217,7 +333,17 @@ export function DistributionSection() {
                       style={{ color: item.accentColor }}
                     >
                       <TrendIcon className="h-4 w-4" aria-hidden="true" />
-                      <span>{item.delta}</span>
+                      <EditableText
+                        value={item.delta}
+                        onCommit={(val) =>
+                          updateSectionDraft('distribution', (p) => ({
+                            ...p,
+                            causalShifts: p.causalShifts.map((c, i) =>
+                              i === idx ? { ...c, delta: val } : c,
+                            ),
+                          }))
+                        }
+                      />
                     </span>
                   </div>
                 </div>
@@ -260,11 +386,11 @@ export function DistributionSection() {
                         <div className="pt-4">
                           {item.subGroups ? (
                             <div className="space-y-4">
-                              {item.subGroups.map((sg) => {
+                              {item.subGroups.map((sg, sgIdx) => {
                                 const SgIcon = getMilieuIcon(sg.milieuId);
                                 return (
                                   <div
-                                    key={sg.name}
+                                    key={`sg-${sgIdx}`}
                                     className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 sm:p-5"
                                   >
                                     <div className="flex items-center justify-between gap-3">
@@ -275,18 +401,79 @@ export function DistributionSection() {
                                           aria-hidden="true"
                                         />
                                         <span className="text-base font-semibold text-[#f7f8f8]">
-                                          {sg.name}
+                                          <EditableText
+                                            value={sg.name}
+                                            onCommit={(val) =>
+                                              updateSectionDraft('distribution', (p) => ({
+                                                ...p,
+                                                causalShifts: p.causalShifts.map((c, i) =>
+                                                  i === idx && c.subGroups
+                                                    ? {
+                                                        ...c,
+                                                        subGroups: c.subGroups.map(
+                                                          (sub, sI) =>
+                                                            sI === sgIdx
+                                                              ? { ...sub, name: val }
+                                                              : sub,
+                                                        ),
+                                                      }
+                                                    : c,
+                                                ),
+                                              }))
+                                            }
+                                          />
                                         </span>
                                       </div>
                                       <span
                                         className="font-mono-tabular text-base font-semibold"
                                         style={{ color: sg.color }}
                                       >
-                                        {sg.share}
+                                        <EditableText
+                                          value={sg.share}
+                                          onCommit={(val) =>
+                                            updateSectionDraft('distribution', (p) => ({
+                                              ...p,
+                                              causalShifts: p.causalShifts.map((c, i) =>
+                                                i === idx && c.subGroups
+                                                  ? {
+                                                      ...c,
+                                                      subGroups: c.subGroups.map(
+                                                        (sub, sI) =>
+                                                          sI === sgIdx
+                                                            ? { ...sub, share: val }
+                                                            : sub,
+                                                      ),
+                                                    }
+                                                  : c,
+                                              ),
+                                            }))
+                                          }
+                                        />
                                       </span>
                                     </div>
                                     <p className="mt-2 text-[15px] leading-relaxed text-[#cbd5e1]">
-                                      {sg.text}
+                                      <EditableText
+                                        value={sg.text}
+                                        multiline
+                                        onCommit={(val) =>
+                                          updateSectionDraft('distribution', (p) => ({
+                                            ...p,
+                                            causalShifts: p.causalShifts.map((c, i) =>
+                                              i === idx && c.subGroups
+                                                ? {
+                                                    ...c,
+                                                    subGroups: c.subGroups.map(
+                                                      (sub, sI) =>
+                                                        sI === sgIdx
+                                                          ? { ...sub, text: val }
+                                                          : sub,
+                                                    ),
+                                                  }
+                                                : c,
+                                            ),
+                                          }))
+                                        }
+                                      />
                                     </p>
                                   </div>
                                 );
@@ -303,7 +490,18 @@ export function DistributionSection() {
                                   <span>Ausgangslage 2026</span>
                                 </div>
                                 <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#b4bac4]">
-                                  {item.baseline2026}
+                                  <EditableText
+                                    value={item.baseline2026 ?? ''}
+                                    multiline
+                                    onCommit={(val) =>
+                                      updateSectionDraft('distribution', (p) => ({
+                                        ...p,
+                                        causalShifts: p.causalShifts.map((c, i) =>
+                                          i === idx ? { ...c, baseline2026: val } : c,
+                                        ),
+                                      }))
+                                    }
+                                  />
                                 </p>
                               </div>
 
@@ -312,10 +510,35 @@ export function DistributionSection() {
                                   className="text-sm font-semibold"
                                   style={{ color: item.accentColor }}
                                 >
-                                  {item.developmentLabel}
+                                  <EditableText
+                                    value={item.developmentLabel ?? ''}
+                                    onCommit={(val) =>
+                                      updateSectionDraft('distribution', (p) => ({
+                                        ...p,
+                                        causalShifts: p.causalShifts.map((c, i) =>
+                                          i === idx
+                                            ? { ...c, developmentLabel: val }
+                                            : c,
+                                        ),
+                                      }))
+                                    }
+                                  />
                                 </div>
                                 <p className="mt-1.5 text-[15px] sm:text-base leading-relaxed text-[#d1d5db]">
-                                  {item.development2035}
+                                  <EditableText
+                                    value={item.development2035 ?? ''}
+                                    multiline
+                                    onCommit={(val) =>
+                                      updateSectionDraft('distribution', (p) => ({
+                                        ...p,
+                                        causalShifts: p.causalShifts.map((c, i) =>
+                                          i === idx
+                                            ? { ...c, development2035: val }
+                                            : c,
+                                        ),
+                                      }))
+                                    }
+                                  />
                                 </p>
                               </div>
                             </div>
@@ -332,7 +555,15 @@ export function DistributionSection() {
           {/* Clean bottom sum verification footer inside the ledger */}
           <div className="flex flex-col gap-3 bg-white/[0.025] px-7 py-6 sm:flex-row sm:items-center sm:justify-between sm:px-10">
             <span className="text-sm font-medium text-[#9ea4b0]">
-              {distribution.ledgerFooterLabel}
+              <EditableText
+                value={distribution.ledgerFooterLabel}
+                onCommit={(val) =>
+                  updateSectionDraft('distribution', (p) => ({
+                    ...p,
+                    ledgerFooterLabel: val,
+                  }))
+                }
+              />
             </span>
             <div className="font-mono-tabular text-sm sm:text-base font-medium text-[#e2e8f0]">
               {sorted2035.map((m) => `${m.share2035} %`).join(' + ')} ={' '}

@@ -1,41 +1,30 @@
 import {
   AlertTriangle,
-  ArrowLeft,
   Check,
   Copy,
   Database,
   Grid2x2,
   Layers,
   ListChecks,
-  Lock,
-  LogOut,
-  Mail,
   PieChart,
   Plus,
   RefreshCw,
   RotateCcw,
   Save,
-  ShieldAlert,
   ShieldCheck,
   Sliders,
   Trash2,
+  X,
 } from 'lucide-react';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-} from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSiteContent } from '../context/ContentContext';
 import type { ShapeVariant } from '../data/milieus';
 import {
   CONTENT_SECTION_IDS,
   VALID_MILIEU_ID_LIST,
   type ContentSectionId,
-  type SiteContentState,
 } from '../data/siteContentDefaults';
-import { ADMIN_EMAILS, isAuthorizedAdminEmail } from '../services/siteContent';
+import { ADMIN_EMAILS } from '../services/siteContent';
 
 interface AdminPanelModalProps {
   open: boolean;
@@ -95,252 +84,53 @@ const TEXTAREA_CLASS =
   'w-full rounded-xl border border-white/[0.12] bg-[#06070a] px-3 py-2 text-sm text-[#f7f8f8] placeholder:text-[#62666d] focus:border-emerald-400 focus:outline-none transition-colors min-h-[76px] resize-y';
 const LABEL_CLASS = 'block text-xs font-medium text-[#9ea4b0] mb-1';
 
-function mapAuthError(err: unknown): string {
-  const code =
-    typeof err === 'object' && err !== null && 'code' in err
-      ? String((err as { code?: unknown }).code ?? '')
-      : '';
-  const msg = err instanceof Error ? err.message : String(err);
-
-  if (code.includes('popup-closed-by-user')) {
-    return 'Anmeldefenster wurde geschlossen. Bitte erneut auf „Mit Google anmelden“ klicken.';
-  }
-  if (code.includes('popup-blocked')) {
-    return 'Das Anmeldefenster wurde vom Browser blockiert. Bitte Pop-ups für diese Seite erlauben.';
-  }
-  if (code.includes('unauthorized-domain')) {
-    return 'Diese Domain ist in der Firebase Console unter Authentication → Settings → Authorized domains noch nicht freigeschaltet.';
-  }
-  if (
-    code.includes('invalid-credential') ||
-    code.includes('wrong-password') ||
-    code.includes('user-not-found')
-  ) {
-    return 'E-Mail oder Passwort ist falsch (oder dieses Konto wurde noch nicht in Firebase Authentication angelegt).';
-  }
-  if (code.includes('invalid-email')) {
-    return 'Bitte eine gültige E-Mail-Adresse eingeben.';
-  }
-  if (code.includes('missing-password')) {
-    return 'Bitte ein Passwort eingeben.';
-  }
-  if (code.includes('too-many-requests')) {
-    return 'Zu viele Anmeldeversuche. Bitte kurz warten und erneut versuchen.';
-  }
-  if (code.includes('operation-not-allowed')) {
-    return 'Diese Anmeldemethode ist im Firebase-Projekt unter Authentication → Sign-in method noch nicht aktiviert.';
-  }
-  return `Anmeldung fehlgeschlagen: ${msg}`;
-}
-
 export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
   const {
-    content,
-    user,
-    authReady,
+    draft,
+    dirtyMap,
+    dirtyCount,
     isAdmin,
-    adminCheckLoading,
     rulesMissingWarning,
-    signInWithGoogle,
-    signInWithEmailPassword,
-    sendVerificationEmail,
-    refreshAdminStatus,
-    signOut,
+    updateSectionDraft,
     saveSection,
+    saveAllDirtySections,
     resetSection,
     refreshRulesStatus,
   } = useSiteContent();
 
-  const [activeTab, setActiveTab] = useState<ContentSectionId>('meta');
-  const [draft, setDraft] = useState<SiteContentState>(() =>
-    structuredClone(content),
-  );
-  const [dirtyMap, setDirtyMap] = useState<Record<ContentSectionId, boolean>>({
-    meta: false,
-    milieus_2035: false,
-    milieus_2026: false,
-    axes_rifts: false,
-    transformation: false,
-    distribution: false,
-    self_test: false,
-  });
-
+  const [activeTab, setActiveTab] = useState<ContentSectionId>('milieus_2035');
   const [selected2035Idx, setSelected2035Idx] = useState(0);
   const [selected2026Idx, setSelected2026Idx] = useState(0);
 
-  const [emailInput, setEmailInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [verifyBusy, setVerifyBusy] = useState(false);
-  const [verifyMsg, setVerifyMsg] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{
     type: 'success' | 'error';
     text: string;
   } | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [copiedUid, setCopiedUid] = useState(false);
   const [copiedRules, setCopiedRules] = useState(false);
-
-  // Sync non-dirty sections when remote content updates or modal opens
-  useEffect(() => {
-    if (!open) return;
-    setDraft((prev) => {
-      const next = structuredClone(prev);
-      for (const id of CONTENT_SECTION_IDS) {
-        if (!dirtyMap[id]) {
-          (next as unknown as Record<ContentSectionId, unknown>)[id] =
-            structuredClone(content[id]);
-        }
-      }
-      return next;
-    });
-  }, [open, content, dirtyMap]);
 
   useEffect(() => {
     if (!open) {
       setConfirmReset(false);
       setSaveStatus(null);
-    }
-  }, [open]);
-
-  const updateSectionDraft = useCallback(
-    <K extends ContentSectionId>(
-      sectionId: K,
-      updater: (prev: SiteContentState[K]) => SiteContentState[K],
-    ) => {
-      setDraft((prev) => ({
-        ...prev,
-        [sectionId]: updater(prev[sectionId]),
-      }));
-      setDirtyMap((prev) => ({ ...prev, [sectionId]: true }));
-      setSaveStatus(null);
-      setConfirmReset(false);
-    },
-    [],
-  );
-
-  const handleGoogleLogin = async () => {
-    setAuthBusy(true);
-    setAuthError(null);
-    setVerifyMsg(null);
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      setAuthError(mapAuthError(err));
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const handleEmailLogin = async (e: FormEvent) => {
-    e.preventDefault();
-    const trimmedEmail = emailInput.trim();
-    if (!trimmedEmail || !passwordInput) {
-      setAuthError('Bitte E-Mail-Adresse und Passwort eingeben.');
       return;
     }
-    setAuthBusy(true);
-    setAuthError(null);
-    setVerifyMsg(null);
-    try {
-      await signInWithEmailPassword(trimmedEmail, passwordInput);
-      setPasswordInput('');
-    } catch (err) {
-      setAuthError(mapAuthError(err));
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-
-  const handleSendVerification = async () => {
-    setVerifyBusy(true);
-    setVerifyMsg(null);
-    try {
-      await sendVerificationEmail();
-      setVerifyMsg({
-        type: 'success',
-        text: `Bestätigungs-E-Mail an ${user?.email ?? 'deine Adresse'} gesendet. Bitte Link öffnen (ggf. Spam-Ordner prüfen) und danach „Status prüfen“ klicken.`,
-      });
-    } catch (err) {
-      setVerifyMsg({
-        type: 'error',
-        text: mapAuthError(err),
-      });
-    } finally {
-      setVerifyBusy(false);
-    }
-  };
-
-  const handleRefreshVerification = async () => {
-    setVerifyBusy(true);
-    setVerifyMsg(null);
-    try {
-      const allowed = await refreshAdminStatus();
-      if (!allowed) {
-        setVerifyMsg({
-          type: 'error',
-          text: 'Die Bestätigung ist noch nicht aktiv. Bitte zuerst den Link in der E-Mail öffnen (ggf. Spam-Ordner prüfen) und anschließend erneut prüfen.',
-        });
-      }
-    } catch (err) {
-      setVerifyMsg({
-        type: 'error',
-        text: mapAuthError(err),
-      });
-    } finally {
-      setVerifyBusy(false);
-    }
-  };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
 
   const handleSaveCurrent = async () => {
     setSaveBusy(true);
     setSaveStatus(null);
     try {
       await saveSection(activeTab, draft[activeTab]);
-      setDirtyMap((prev) => ({ ...prev, [activeTab]: false }));
       setSaveStatus({
         type: 'success',
         text: `Sektion „${TAB_META.find((t) => t.id === activeTab)?.shortLabel}“ gespeichert.`,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setSaveStatus({
-        type: 'error',
-        text: msg.toLowerCase().includes('permission')
-          ? 'Speichern blockiert: Firestore-Regeln für /siteContent fehlen oder Konto ist kein Admin.'
-          : `Fehler beim Speichern: ${msg}`,
-      });
-    } finally {
-      setSaveBusy(false);
-    }
-  };
-
-  const handleSaveAllDirty = async () => {
-    const dirtyIds = CONTENT_SECTION_IDS.filter((id) => dirtyMap[id]);
-    if (dirtyIds.length === 0) return;
-    setSaveBusy(true);
-    setSaveStatus(null);
-    try {
-      for (const id of dirtyIds) {
-        await saveSection(id, draft[id]);
-      }
-      setDirtyMap({
-        meta: false,
-        milieus_2035: false,
-        milieus_2026: false,
-        axes_rifts: false,
-        transformation: false,
-        distribution: false,
-        self_test: false,
-      });
-      setSaveStatus({
-        type: 'success',
-        text: `${dirtyIds.length} geänderte Sektion(en) in Firestore gespeichert.`,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -355,12 +145,31 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
     }
   };
 
+  const handleSaveAllDirty = async () => {
+    setSaveBusy(true);
+    setSaveStatus(null);
+    try {
+      await saveAllDirtySections();
+      setSaveStatus({
+        type: 'success',
+        text: 'Alle geänderten Sektionen in Firestore gespeichert.',
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSaveStatus({
+        type: 'error',
+        text: `Fehler beim Speichern: ${msg}`,
+      });
+    } finally {
+      setSaveBusy(false);
+    }
+  };
+
   const handleResetActiveSection = async () => {
     setSaveBusy(true);
     setSaveStatus(null);
     try {
       await resetSection(activeTab);
-      setDirtyMap((prev) => ({ ...prev, [activeTab]: false }));
       setConfirmReset(false);
       setSaveStatus({
         type: 'success',
@@ -377,22 +186,16 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
     }
   };
 
-  const copyText = async (text: string, which: 'uid' | 'rules') => {
+  const copyRules = async () => {
     try {
-      await navigator.clipboard.writeText(text);
-      if (which === 'uid') {
-        setCopiedUid(true);
-        window.setTimeout(() => setCopiedUid(false), 1800);
-      } else {
-        setCopiedRules(true);
-        window.setTimeout(() => setCopiedRules(false), 1800);
-      }
+      await navigator.clipboard.writeText(COPYABLE_FIRESTORE_RULES_HINT);
+      setCopiedRules(true);
+      window.setTimeout(() => setCopiedRules(false), 1800);
     } catch {
       // Ignore clipboard failures
     }
   };
 
-  const dirtyCount = CONTENT_SECTION_IDS.filter((id) => dirtyMap[id]).length;
   const sum2035 = useMemo(
     () =>
       Math.round(
@@ -415,294 +218,58 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
     [draft.milieus_2026.classicMilieus],
   );
 
-  if (!open) return null;
+  if (!open || !isAdmin) return null;
 
   return (
-    <main
+    <div
+      role="dialog"
+      aria-modal="true"
       aria-labelledby="admin-modal-title"
-      data-testid="admin-panel-modal"
-      className="fixed inset-0 z-50 flex h-dvh w-full flex-col overflow-hidden bg-[#0b0d11] text-[#f7f8f8]"
+      data-testid="admin-data-drawer"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5"
     >
-      {/* Fullscreen Top Header */}
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.09] bg-[#0e1015] px-5 py-3.5 sm:px-8">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04]">
-            {isAdmin ? (
-              <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
-            ) : (
-              <Lock className="h-5 w-5 text-[#9ea4b0]" aria-hidden="true" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <h1
-              id="admin-modal-title"
-              className="font-display text-lg sm:text-xl font-semibold text-[#f7f8f8] truncate"
-            >
-              Admin-Ansicht · Inhalte &amp; 3D-Daten verwalten
-            </h1>
-            <p className="text-xs text-[#8a8f98] truncate">
-              {user
-                ? `Angemeldet als ${user.email || user.uid}`
-                : 'Geschützter Redaktionsbereich · Anmeldung erforderlich'}
-            </p>
-          </div>
-        </div>
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-black/75 backdrop-blur-sm"
+      />
 
-        <div className="flex items-center gap-2.5">
-          {user && (
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              data-testid="admin-signout-btn"
-              className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.08] cursor-pointer transition-colors"
-            >
-              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Abmelden</span>
-            </button>
-          )}
+      <div className="relative z-10 flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/[0.14] bg-[#0b0d11] text-[#f7f8f8] shadow-[0_24px_80px_rgba(0,0,0,0.9)]">
+        {/* Drawer Header */}
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.09] bg-[#0e1015] px-5 py-3.5 sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04]">
+              <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h2
+                id="admin-modal-title"
+                className="font-display text-lg sm:text-xl font-semibold text-[#f7f8f8] truncate"
+              >
+                3D-Daten &amp; Alle Felder verwalten
+              </h2>
+              <p className="text-xs text-[#8a8f98] truncate">
+                Änderungen hier wirken live auf die Website im Hintergrund
+              </p>
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={onClose}
-            aria-label="Zurück zur Website"
-            data-testid="close-admin-modal-btn"
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-2 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+            aria-label="Fenster schließen"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.04] text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
           >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Zur Website</span>
+            <X className="h-4 w-4" />
           </button>
-        </div>
-      </header>
+        </header>
 
-          {/* Body Switch: Auth Gate vs Denied vs Authorized CMS Editor */}
-          {!authReady || adminCheckLoading ? (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-12 text-center">
-              <RefreshCw
-                className="h-6 w-6 animate-spin text-emerald-400"
-                aria-hidden="true"
-              />
-              <p className="text-sm text-[#cbd5e1]">
-                Anmeldestatus und Berechtigung werden geprüft…
-              </p>
-            </div>
-          ) : !user ? (
-            <div
-              data-testid="admin-login-gate"
-              className="sidebar-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto p-6 sm:p-10 text-center"
-            >
-              <div className="flex h-13 w-13 items-center justify-center rounded-2xl border border-white/[0.12] bg-white/[0.04]">
-                <Lock className="h-6 w-6 text-emerald-400" aria-hidden="true" />
-              </div>
-              <h3 className="mt-4 font-display text-2xl font-semibold text-[#f7f8f8]">
-                Administrator-Anmeldung erforderlich
-              </h3>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-[#9ea4b0]">
-                Melde dich mit deinem Admin-Konto an, um Texte, Prozentwerte,
-                Resilienz-Koordinaten, Achsen, Gräben und Selbsttest-Fragen
-                zentral zu bearbeiten.
-              </p>
+        <div
+          data-testid="admin-editor"
+          className="flex flex-1 min-h-0 flex-col"
+        >
 
-              <form
-                onSubmit={(e) => void handleEmailLogin(e)}
-                data-testid="admin-email-login-form"
-                className="mt-6 w-full max-w-sm space-y-3 rounded-2xl border border-white/[0.1] bg-[#07090d] p-5 text-left"
-              >
-                <div>
-                  <label htmlFor="admin-email-input" className={LABEL_CLASS}>
-                    E-Mail-Adresse
-                  </label>
-                  <input
-                    id="admin-email-input"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    value={emailInput}
-                    onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder="name@beispiel.de"
-                    data-testid="admin-email-input"
-                    className={INPUT_CLASS}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="admin-password-input" className={LABEL_CLASS}>
-                    Passwort
-                  </label>
-                  <input
-                    id="admin-password-input"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    value={passwordInput}
-                    onChange={(e) => setPasswordInput(e.target.value)}
-                    placeholder="••••••••"
-                    data-testid="admin-password-input"
-                    className={INPUT_CLASS}
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={authBusy}
-                  data-testid="admin-email-login-btn"
-                  className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#f7f8f8] px-5 py-2.5 text-sm font-semibold text-[#040406] hover:bg-white disabled:opacity-55 cursor-pointer transition-colors"
-                >
-                  <Mail className="h-4 w-4 text-emerald-700" aria-hidden="true" />
-                  <span>
-                    {authBusy
-                      ? 'Anmeldung läuft…'
-                      : 'Mit E-Mail & Passwort anmelden'}
-                  </span>
-                </button>
-              </form>
-
-              <div className="my-4 flex w-full max-w-sm items-center gap-3">
-                <div className="h-px flex-1 bg-white/[0.1]" />
-                <span className="text-[11px] uppercase tracking-wider text-[#6e7582]">
-                  oder
-                </span>
-                <div className="h-px flex-1 bg-white/[0.1]" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => void handleGoogleLogin()}
-                disabled={authBusy}
-                data-testid="admin-google-login-btn"
-                className="inline-flex w-full max-w-sm items-center justify-center gap-2.5 rounded-full border border-white/[0.14] bg-white/[0.04] px-6 py-2.5 text-sm font-medium text-[#f7f8f8] hover:bg-white/[0.09] disabled:opacity-55 cursor-pointer transition-colors"
-              >
-                <ShieldCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-                <span>Mit Google anmelden</span>
-              </button>
-
-              {authError && (
-                <div
-                  data-testid="admin-auth-error"
-                  className="mt-5 max-w-md rounded-2xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-xs font-medium text-rose-200"
-                >
-                  {authError}
-                </div>
-              )}
-            </div>
-          ) : !isAdmin ? (
-            !user.emailVerified && isAuthorizedAdminEmail(user.email) ? (
-              <div
-                data-testid="admin-verify-email-card"
-                className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-400/35 bg-amber-400/10">
-                  <Mail className="h-6 w-6 text-amber-300" aria-hidden="true" />
-                </div>
-                <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
-                  E-Mail-Adresse einmalig bestätigen
-                </h3>
-                <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-[#9ea4b0]">
-                  Dein Konto{' '}
-                  <strong className="text-[#f7f8f8]">{user.email}</strong> ist
-                  als Administrator berechtigt, die E-Mail-Adresse wurde in
-                  Firebase aber noch nicht verifiziert. Aus Sicherheitsgründen
-                  erlauben die Firestore-Regeln Schreibzugriffe erst nach
-                  Bestätigung.
-                </p>
-
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleSendVerification()}
-                    disabled={verifyBusy}
-                    data-testid="admin-send-verification-btn"
-                    className="inline-flex items-center gap-2 rounded-full bg-[#f7f8f8] px-5 py-2.5 text-xs font-semibold text-[#040406] hover:bg-white disabled:opacity-55 cursor-pointer"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-emerald-700" />
-                    <span>Bestätigungs-E-Mail senden</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshVerification()}
-                    disabled={verifyBusy}
-                    data-testid="admin-refresh-verification-btn"
-                    className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-5 py-2.5 text-xs font-semibold text-emerald-200 hover:bg-emerald-400/20 disabled:opacity-55 cursor-pointer"
-                  >
-                    <RefreshCw
-                      className={`h-3.5 w-3.5 ${verifyBusy ? 'animate-spin' : ''}`}
-                    />
-                    <span>Bereits bestätigt · Status prüfen</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void signOut()}
-                    className="rounded-full border border-white/[0.14] bg-white/[0.04] px-5 py-2.5 text-xs font-medium text-[#e2e8f0] hover:bg-white/[0.08] cursor-pointer"
-                  >
-                    Abmelden
-                  </button>
-                </div>
-
-                {verifyMsg && (
-                  <div
-                    className={`mt-5 max-w-md rounded-2xl border px-4 py-3 text-xs font-medium ${
-                      verifyMsg.type === 'success'
-                        ? 'border-emerald-500/35 bg-emerald-500/10 text-emerald-200'
-                        : 'border-rose-500/35 bg-rose-500/10 text-rose-200'
-                    }`}
-                  >
-                    {verifyMsg.text}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div
-                data-testid="admin-access-denied"
-                className="flex flex-1 flex-col items-center justify-center p-8 sm:p-14 text-center"
-              >
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/35 bg-rose-500/10">
-                  <ShieldAlert className="h-6 w-6 text-rose-400" aria-hidden="true" />
-                </div>
-                <h3 className="mt-5 font-display text-2xl font-semibold text-[#f7f8f8]">
-                  Kein Admin-Zugriff für dieses Konto
-                </h3>
-                <p className="mt-2.5 max-w-lg text-sm leading-relaxed text-[#9ea4b0]">
-                  Du bist angemeldet als{' '}
-                  <strong className="text-[#f7f8f8]">{user.email}</strong>, dieses
-                  Konto ist jedoch nicht als Administrator hinterlegt.
-                </p>
-
-                <div className="mt-5 w-full max-w-md rounded-2xl border border-white/[0.1] bg-[#06070a] p-4 text-left">
-                  <div className="text-xs font-medium text-[#8a8f98]">
-                    Deine Firebase User-UID (für /admins/{'{uid}'} im eigenen Projekt):
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2">
-                    <code className="font-mono-tabular text-xs text-emerald-300 break-all">
-                      {user.uid}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => void copyText(user.uid, 'uid')}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-lg border border-white/[0.12] bg-white/[0.04] px-2.5 py-1 text-xs text-[#e2e8f0] hover:bg-white/[0.09] cursor-pointer"
-                    >
-                      {copiedUid ? (
-                        <Check className="h-3.5 w-3.5 text-emerald-400" />
-                      ) : (
-                        <Copy className="h-3.5 w-3.5" />
-                      )}
-                      <span>{copiedUid ? 'Kopiert' : 'UID'}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void signOut()}
-                    className="rounded-full bg-[#f7f8f8] px-5 py-2.5 text-xs font-semibold text-[#040406] hover:bg-white cursor-pointer"
-                  >
-                    Mit anderem Konto anmelden
-                  </button>
-                </div>
-              </div>
-            )
-          ) : (
-            /* Authorized Full CMS Editor */
-            <div
-              data-testid="admin-editor"
-              className="flex flex-1 min-h-0 flex-col"
-            >
+          {/* Body Content */}
+            <div className="flex flex-1 min-h-0 flex-col">
               {/* External Firebase Rules Warning (shown only if /siteContent rules aren't published yet) */}
               {rulesMissingWarning && (
                 <div className="border-b border-amber-500/30 bg-amber-500/10 px-5 py-3 text-xs text-amber-100">
@@ -721,9 +288,7 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() =>
-                          void copyText(COPYABLE_FIRESTORE_RULES_HINT, 'rules')
-                        }
+                        onClick={() => void copyRules()}
                         className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/15 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-400/25 cursor-pointer"
                       >
                         {copiedRules ? (
@@ -749,7 +314,7 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
               )}
 
               {/* Section Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/[0.08] bg-[#090b0f] px-5 py-2.5 sm:px-8 sidebar-scroll">
+              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/[0.08] bg-[#090b0f] px-5 py-2.5 sm:px-6 sidebar-scroll">
                 {TAB_META.map((tab) => {
                   const active = activeTab === tab.id;
                   const dirty = dirtyMap[tab.id];
@@ -3318,7 +2883,8 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
                 </div>
               </div>
             </div>
-          )}
-    </main>
+        </div>
+      </div>
+    </div>
   );
 }

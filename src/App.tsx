@@ -1,7 +1,9 @@
 import { MotionConfig } from 'motion/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AdminAuthGate, AdminOverlayBar } from './components/AdminOverlayBar';
 import { AdminPanelModal } from './components/AdminPanelModal';
 import { DistributionSection } from './components/DistributionSection';
+import { EditableText } from './components/EditableText';
 import { Hero3DStage } from './components/Hero3DStage';
 import { HeroHookSection } from './components/HeroHookSection';
 import { IntroTimelineSplash } from './components/IntroTimelineSplash';
@@ -45,7 +47,8 @@ function shouldSkipIntroOnLoad(): boolean {
 }
 
 export default function App() {
-  const { content } = useSiteContent();
+  const { content, isAdmin, setAdminModeActive, updateSectionDraft } =
+    useSiteContent();
   const latestContentRef = useRef(content);
   latestContentRef.current = content;
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +57,7 @@ export default function App() {
 
   const [initialSurveyCode] = useState<string | null>(() => getInitialSurveyCode());
   const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => isAdminPath());
+  const [dataDrawerOpen, setDataDrawerOpen] = useState(false);
   const [showIntro, setShowIntro] = useState<boolean>(() => !shouldSkipIntroOnLoad());
   const [mode, setMode] = useState<ModelMode>('2035');
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
@@ -126,16 +130,25 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Sync active admin route state with ContentContext (serves live draft when authorized)
+  useEffect(() => {
+    setAdminModeActive(isAdminRoute);
+    if (!isAdminRoute) {
+      setDataDrawerOpen(false);
+    }
+  }, [isAdminRoute, setAdminModeActive]);
+
   const handleExitAdmin = useCallback(() => {
     if (window.location.pathname !== '/') {
       window.history.pushState({}, '', '/');
     }
+    setDataDrawerOpen(false);
     setIsAdminRoute(false);
   }, []);
 
-  // Mount Three.js scene when on public site
+  // Mount Three.js scene when public site or authenticated admin site is rendered
   useEffect(() => {
-    if (isAdminRoute) return;
+    if (isAdminRoute && !isAdmin) return;
     const mountEl = canvasMountRef.current;
     if (!mountEl) return;
 
@@ -205,9 +218,9 @@ export default function App() {
       manager.dispose();
       sceneRef.current = null;
     };
-  }, [handleLabelsFrame, isAdminRoute]);
+  }, [handleLabelsFrame, isAdminRoute, isAdmin]);
 
-  // Live-sync Firestore CMS edits into the mounted Three.js scene
+  // Live-sync Firestore CMS / inline draft edits into the mounted Three.js scene
   useEffect(() => {
     sceneRef.current?.updateSceneData({
       milieus: content.milieus_2035.milieus,
@@ -288,10 +301,10 @@ export default function App() {
     [],
   );
 
-  if (isAdminRoute) {
+  if (isAdminRoute && !isAdmin) {
     return (
       <MotionConfig reducedMotion="user">
-        <AdminPanelModal open onClose={handleExitAdmin} />
+        <AdminAuthGate onExitAdmin={handleExitAdmin} />
       </MotionConfig>
     );
   }
@@ -299,7 +312,14 @@ export default function App() {
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative min-h-screen bg-[#040406] text-[#f7f8f8]">
-        {showIntro && (
+        {isAdminRoute && isAdmin && (
+          <AdminOverlayBar
+            onOpenDataDrawer={() => setDataDrawerOpen(true)}
+            onExitAdmin={handleExitAdmin}
+          />
+        )}
+
+        {showIntro && !isAdminRoute && (
           <IntroTimelineSplash onComplete={() => setShowIntro(false)} />
         )}
 
@@ -355,8 +375,28 @@ export default function App() {
 
           <footer className="border-t border-white/[0.06] py-10">
             <div className="mx-auto flex max-w-[1280px] flex-col sm:flex-row items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 text-sm text-[#8a8f98] text-center sm:text-left">
-              <span>{content.meta.footerLeft}</span>
-              <span>{content.meta.footerRight}</span>
+              <span>
+                <EditableText
+                  value={content.meta.footerLeft}
+                  onCommit={(val) =>
+                    updateSectionDraft('meta', (p) => ({
+                      ...p,
+                      footerLeft: val,
+                    }))
+                  }
+                />
+              </span>
+              <span>
+                <EditableText
+                  value={content.meta.footerRight}
+                  onCommit={(val) =>
+                    updateSectionDraft('meta', (p) => ({
+                      ...p,
+                      footerRight: val,
+                    }))
+                  }
+                />
+              </span>
             </div>
           </footer>
         </div>
@@ -367,6 +407,13 @@ export default function App() {
           mode={mode}
           selection={selection}
         />
+
+        {isAdminRoute && isAdmin && (
+          <AdminPanelModal
+            open={dataDrawerOpen}
+            onClose={() => setDataDrawerOpen(false)}
+          />
+        )}
       </div>
     </MotionConfig>
   );

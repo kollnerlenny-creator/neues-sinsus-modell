@@ -25,6 +25,7 @@ import type {
 import { useSiteContent } from '../context/ContentContext';
 import type { SelectionPayload } from '../three/SinusSceneManager';
 import { getMilieuIcon } from '../utils/milieuIcons';
+import { EditableNumber, EditableText } from './EditableText';
 
 interface Hero3DStageProps {
   mode: ModelMode;
@@ -81,10 +82,49 @@ export function Hero3DStage({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [mobileDetailsOpen, setMobileDetailsOpen] = useState(false);
   const isMobile = useIsMobileViewport();
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft, canInlineEdit } = useSiteContent();
   const { meta } = content;
   const milieus2035 = content.milieus_2035.milieus;
   const milieus2026 = content.milieus_2026.classicMilieus;
+
+  const updateMilieu2035 = (id: MilieuSpec['id'], patch: Partial<MilieuSpec>) => {
+    updateSectionDraft('milieus_2035', (p) => ({
+      ...p,
+      milieus: p.milieus.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    }));
+  };
+
+  const updateMilieu2035ChainStep = (
+    id: MilieuSpec['id'],
+    stepIdx: number,
+    nextStep: string,
+  ) => {
+    updateSectionDraft('milieus_2035', (p) => ({
+      ...p,
+      milieus: p.milieus.map((m) =>
+        m.id === id
+          ? {
+              ...m,
+              causalChain: m.causalChain.map((s, idx) =>
+                idx === stepIdx ? nextStep : s,
+              ),
+            }
+          : m,
+      ),
+    }));
+  };
+
+  const updateMilieu2026 = (
+    id: string,
+    patch: Partial<ClassicMilieu2026Spec>,
+  ) => {
+    updateSectionDraft('milieus_2026', (p) => ({
+      ...p,
+      classicMilieus: p.classicMilieus.map((m) =>
+        m.id === id ? { ...m, ...patch } : m,
+      ),
+    }));
+  };
 
   const selected2035: MilieuSpec | null =
     selection?.kind === '2035'
@@ -224,13 +264,23 @@ export function Hero3DStage({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-[13px] font-medium text-[#9ea4b0]">
                     <span style={{ color: selected2035.colorHex }}>
-                      {selected2035.badge2035}
+                      <EditableText
+                        value={selected2035.badge2035}
+                        onCommit={(val) =>
+                          updateMilieu2035(selected2035.id, { badge2035: val })
+                        }
+                      />
                     </span>
                     <span aria-hidden="true">·</span>
                     <span>SINUS 2035</span>
                   </div>
                   <h3 className="mt-0.5 font-display text-base sm:text-[22px] font-semibold leading-snug text-white">
-                    {selected2035.name}
+                    <EditableText
+                      value={selected2035.name}
+                      onCommit={(val) =>
+                        updateMilieu2035(selected2035.id, { name: val })
+                      }
+                    />
                   </h3>
                 </div>
               </div>
@@ -256,7 +306,16 @@ export function Hero3DStage({
                     className="mt-1 font-mono-tabular text-lg sm:text-[26px] font-semibold leading-none"
                     style={{ color: selected2035.colorHex }}
                   >
-                    {selected2035.share2035} %
+                    <EditableNumber
+                      value={selected2035.share2035}
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      suffix=" %"
+                      onCommit={(val) =>
+                        updateMilieu2035(selected2035.id, { share2035: val })
+                      }
+                    />
                   </div>
                 </div>
                 <div>
@@ -264,7 +323,17 @@ export function Hero3DStage({
                     Resilienz (Z-Achse)
                   </div>
                   <div className="mt-1 font-mono-tabular text-lg sm:text-[26px] font-semibold leading-none text-white">
-                    {selected2035.resilienceScore}
+                    <EditableNumber
+                      value={selected2035.resilienceScore}
+                      min={0}
+                      max={100}
+                      step={1}
+                      onCommit={(val) =>
+                        updateMilieu2035(selected2035.id, {
+                          resilienceScore: val,
+                        })
+                      }
+                    />
                     <span className="text-xs sm:text-sm font-normal text-[#8a8f98]">
                       {' '}
                       / 100
@@ -292,7 +361,15 @@ export function Hero3DStage({
                     Auf einen Blick
                   </div>
                   <p className="mt-1 text-sm sm:text-[15px] leading-relaxed text-[#f1f5f9]">
-                    {selected2035.causalChainSummary}
+                    <EditableText
+                      value={selected2035.causalChainSummary}
+                      multiline
+                      onCommit={(val) =>
+                        updateMilieu2035(selected2035.id, {
+                          causalChainSummary: val,
+                        })
+                      }
+                    />
                   </p>
                 </div>
               )}
@@ -329,7 +406,15 @@ export function Hero3DStage({
                       <span>Lage &amp; Werteorientierung</span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2035.socialLayerLabel}
+                      <EditableText
+                        value={selected2035.socialLayerLabel}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2035(selected2035.id, {
+                            socialLayerLabel: val,
+                          })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -342,7 +427,15 @@ export function Hero3DStage({
                       <span>Soziologisches Profil</span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2035.detailedProfile}
+                      <EditableText
+                        value={selected2035.detailedProfile}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2035(selected2035.id, {
+                            detailedProfile: val,
+                          })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -355,7 +448,15 @@ export function Hero3DStage({
                       <span>Entstehung aus 2026</span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2035.originFrom2026}
+                      <EditableText
+                        value={selected2035.originFrom2026}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2035(selected2035.id, {
+                            originFrom2026: val,
+                          })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -372,7 +473,19 @@ export function Hero3DStage({
                           >
                             0{i + 1}
                           </span>
-                          <span>{step}</span>
+                          <span className="min-w-0 flex-1">
+                            <EditableText
+                              value={step}
+                              multiline
+                              onCommit={(val) =>
+                                updateMilieu2035ChainStep(
+                                  selected2035.id,
+                                  i,
+                                  val,
+                                )
+                              }
+                            />
+                          </span>
                         </li>
                       ))}
                     </ol>
@@ -387,7 +500,15 @@ export function Hero3DStage({
                       <span>Gesellschaftliche Konfliktlinie</span>
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2035.conflictLine}
+                      <EditableText
+                        value={selected2035.conflictLine}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2035(selected2035.id, {
+                            conflictLine: val,
+                          })
+                        }
+                      />
                     </p>
                   </div>
                 </div>
@@ -436,7 +557,12 @@ export function Hero3DStage({
                     Klassisches SINUS-Modell 2026 (2D)
                   </div>
                   <h3 className="mt-0.5 font-display text-lg sm:text-[22px] font-semibold leading-snug text-white">
-                    {selected2026.name}
+                    <EditableText
+                      value={selected2026.name}
+                      onCommit={(val) =>
+                        updateMilieu2026(selected2026.id, { name: val })
+                      }
+                    />
                   </h3>
                 </div>
               </div>
@@ -460,7 +586,16 @@ export function Hero3DStage({
                   className="mt-1 font-mono-tabular text-xl sm:text-[26px] font-semibold leading-none"
                   style={{ color: selected2026.colorHex }}
                 >
-                  {selected2026.share2026} %
+                  <EditableNumber
+                    value={selected2026.share2026}
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    suffix=" %"
+                    onCommit={(val) =>
+                      updateMilieu2026(selected2026.id, { share2026: val })
+                    }
+                  />
                 </div>
               </div>
 
@@ -491,7 +626,21 @@ export function Hero3DStage({
                       Verortung im 2D-Raum
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2026.socialLayer} · {selected2026.valueOrientation}
+                      <EditableText
+                        value={selected2026.socialLayer}
+                        onCommit={(val) =>
+                          updateMilieu2026(selected2026.id, { socialLayer: val })
+                        }
+                      />{' '}
+                      ·{' '}
+                      <EditableText
+                        value={selected2026.valueOrientation}
+                        onCommit={(val) =>
+                          updateMilieu2026(selected2026.id, {
+                            valueOrientation: val,
+                          })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -500,7 +649,13 @@ export function Hero3DStage({
                       Charakteristik 2026
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#cbd5e1]">
-                      {selected2026.description}
+                      <EditableText
+                        value={selected2026.description}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2026(selected2026.id, { description: val })
+                        }
+                      />
                     </p>
                   </div>
 
@@ -509,7 +664,13 @@ export function Hero3DStage({
                       Entwicklung bis 2035
                     </div>
                     <p className="mt-1.5 text-sm sm:text-[15px] leading-relaxed text-[#f1f5f9]">
-                      {selected2026.evolvesInto}
+                      <EditableText
+                        value={selected2026.evolvesInto}
+                        multiline
+                        onCommit={(val) =>
+                          updateMilieu2026(selected2026.id, { evolvesInto: val })
+                        }
+                      />
                     </p>
                   </div>
                 </>
@@ -537,16 +698,42 @@ export function Hero3DStage({
         >
           <div className="lg:col-span-7">
             <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-              {meta.stageEyebrow}
+              <EditableText
+                value={meta.stageEyebrow}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    stageEyebrow: val,
+                  }))
+                }
+              />
             </p>
             <h2 className="mt-2 font-display text-3xl sm:text-5xl lg:text-[48px] font-semibold tracking-tight text-[#f7f8f8] leading-[1.08] text-balance">
-              {meta.stageHeadline}
+              <EditableText
+                value={meta.stageHeadline}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    stageHeadline: val,
+                  }))
+                }
+              />
             </h2>
           </div>
 
           <div className="lg:col-span-5 flex flex-col gap-4 lg:items-end">
             <p className="text-base sm:text-[17px] leading-relaxed text-[#b4bac4] lg:text-right max-w-lg text-balance">
-              {meta.stageDescription}
+              <EditableText
+                value={meta.stageDescription}
+                multiline
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    stageDescription: val,
+                  }))
+                }
+              />
             </p>
 
             {/* Animated Segmented Mode Toggle */}
@@ -575,7 +762,15 @@ export function Hero3DStage({
                 )}
                 <span className="relative z-10 sm:hidden">2026 · 2D (10)</span>
                 <span className="relative z-10 hidden sm:inline">
-                  {meta.stageMode2026Label}
+                  <EditableText
+                    value={meta.stageMode2026Label}
+                    onCommit={(val) =>
+                      updateSectionDraft('meta', (p) => ({
+                        ...p,
+                        stageMode2026Label: val,
+                      }))
+                    }
+                  />
                 </span>
               </button>
               <button
@@ -598,7 +793,15 @@ export function Hero3DStage({
                 )}
                 <span className="relative z-10 sm:hidden">2035 · 3D (6)</span>
                 <span className="relative z-10 hidden sm:inline">
-                  {meta.stageMode2035Label}
+                  <EditableText
+                    value={meta.stageMode2035Label}
+                    onCommit={(val) =>
+                      updateSectionDraft('meta', (p) => ({
+                        ...p,
+                        stageMode2035Label: val,
+                      }))
+                    }
+                  />
                 </span>
               </button>
             </div>
@@ -786,20 +989,52 @@ export function Hero3DStage({
             {/* Fixed, Non-Intrusive Bottom-Left Axis Reference Key (Tablet/Desktop) */}
             <div
               aria-label="Achsenorientierung"
-              className="pointer-events-none absolute bottom-3.5 left-3.5 z-10 hidden sm:flex flex-col gap-1.5 rounded-xl border border-white/[0.1] bg-[#0c0e12]/90 px-3.5 py-2.5 shadow-lg"
+              className={`${
+                canInlineEdit ? 'pointer-events-auto' : 'pointer-events-none'
+              } absolute bottom-3.5 left-3.5 z-10 hidden sm:flex flex-col gap-1.5 rounded-xl border border-white/[0.1] bg-[#0c0e12]/90 px-3.5 py-2.5 shadow-lg`}
             >
               <div className="flex items-center gap-2 text-xs text-[#cbd5e1]">
                 <span className="font-mono-tabular font-semibold text-white">X</span>
-                <span>{meta.stageAxisKeyX}</span>
+                <span>
+                  <EditableText
+                    value={meta.stageAxisKeyX}
+                    onCommit={(val) =>
+                      updateSectionDraft('meta', (p) => ({
+                        ...p,
+                        stageAxisKeyX: val,
+                      }))
+                    }
+                  />
+                </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-[#cbd5e1]">
                 <span className="font-mono-tabular font-semibold text-white">Y</span>
-                <span>{meta.stageAxisKeyY}</span>
+                <span>
+                  <EditableText
+                    value={meta.stageAxisKeyY}
+                    onCommit={(val) =>
+                      updateSectionDraft('meta', (p) => ({
+                        ...p,
+                        stageAxisKeyY: val,
+                      }))
+                    }
+                  />
+                </span>
               </div>
               {mode === '2035' && (
                 <div className="flex items-center gap-2 text-xs text-emerald-400">
                   <span className="font-mono-tabular font-semibold">Z</span>
-                  <span>{meta.stageAxisKeyZ}</span>
+                  <span>
+                    <EditableText
+                      value={meta.stageAxisKeyZ}
+                      onCommit={(val) =>
+                        updateSectionDraft('meta', (p) => ({
+                          ...p,
+                          stageAxisKeyZ: val,
+                        }))
+                      }
+                    />
+                  </span>
                 </div>
               )}
             </div>

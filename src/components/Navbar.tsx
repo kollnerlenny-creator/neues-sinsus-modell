@@ -2,19 +2,24 @@ import { Menu, Share2, X } from 'lucide-react';
 import { motion, useScroll } from 'motion/react';
 import { useState } from 'react';
 import { useSiteContent } from '../context/ContentContext';
+import { EditableText } from './EditableText';
 
 interface NavbarProps {
   onOpenShare: () => void;
 }
 
 export function Navbar({ onOpenShare }: NavbarProps) {
-  const { content } = useSiteContent();
+  const { content, isAdminEditMode, updateSectionDraft } = useSiteContent();
   const { meta } = content;
   const [mobileOpen, setMobileOpen] = useState(false);
   const { scrollYProgress } = useScroll();
 
   return (
-    <header className="sticky top-3 z-40 px-3.5 sm:px-6 lg:px-8 pointer-events-none">
+    <header
+      className={`sticky ${
+        isAdminEditMode ? 'top-14' : 'top-3'
+      } z-40 px-3.5 sm:px-6 lg:px-8 pointer-events-none transition-[top] duration-200`}
+    >
       <div className="pointer-events-auto relative mx-auto flex h-13 sm:h-14 max-w-[1220px] items-center justify-between gap-4 sm:gap-8 overflow-hidden rounded-full border border-white/[0.11] bg-[#090a0d]/95 px-4 sm:px-6 shadow-[0_1px_0_0_rgba(255,255,255,0.07)_inset,0_14px_32px_rgba(0,0,0,0.72)]">
         {/* Subtle Linear scroll progress hairline at bottom of header */}
         <motion.div
@@ -28,7 +33,12 @@ export function Navbar({ onOpenShare }: NavbarProps) {
           href="#einstieg"
           className="font-display text-[15px] font-semibold tracking-tight text-[#f7f8f8] whitespace-nowrap shrink-0 pl-1 hover:text-white transition-colors"
         >
-          {meta.navBrand}
+          <EditableText
+            value={meta.navBrand}
+            onCommit={(val) =>
+              updateSectionDraft('meta', (p) => ({ ...p, navBrand: val }))
+            }
+          />
         </a>
 
         {/* Zone 2: Clean single-line navigation links */}
@@ -36,13 +46,23 @@ export function Navbar({ onOpenShare }: NavbarProps) {
           aria-label="Hauptnavigation"
           className="hidden md:flex items-center gap-7 text-sm font-medium text-[#9ea4b0]"
         >
-          {meta.navLinks.map((link) => (
+          {meta.navLinks.map((link, idx) => (
             <a
-              key={link.href + link.label}
+              key={`${link.href}-${idx}`}
               href={link.href}
               className="whitespace-nowrap shrink-0 py-1 hover:text-[#f7f8f8] transition-colors duration-150"
             >
-              {link.label}
+              <EditableText
+                value={link.label}
+                onCommit={(val) =>
+                  updateSectionDraft('meta', (p) => ({
+                    ...p,
+                    navLinks: p.navLinks.map((l, i) =>
+                      i === idx ? { ...l, label: val } : l,
+                    ),
+                  }))
+                }
+              />
             </a>
           ))}
         </nav>
@@ -63,7 +83,12 @@ export function Navbar({ onOpenShare }: NavbarProps) {
             href="#selbsttest"
             className="inline-flex items-center justify-center rounded-full bg-[#f7f8f8] px-4 sm:px-5 py-2 text-[13px] font-semibold text-[#040406] hover:bg-white transition-colors whitespace-nowrap shrink-0 shadow-sm"
           >
-            {meta.navCtaLabel}
+            <EditableText
+              value={meta.navCtaLabel}
+              onCommit={(val) =>
+                updateSectionDraft('meta', (p) => ({ ...p, navCtaLabel: val }))
+              }
+            />
           </a>
 
           <button
@@ -84,14 +109,24 @@ export function Navbar({ onOpenShare }: NavbarProps) {
           className="pointer-events-auto mx-auto mt-2 max-w-[1220px] rounded-2xl border border-white/[0.1] bg-[#0a0b0e]/98 p-2.5 shadow-2xl md:hidden"
         >
           <div className="flex flex-col gap-1">
-            {meta.navLinks.map((link) => (
+            {meta.navLinks.map((link, idx) => (
               <a
-                key={link.href + link.label}
+                key={`${link.href}-${idx}`}
                 href={link.href}
                 onClick={() => setMobileOpen(false)}
                 className="rounded-xl px-4 py-3 text-[15px] font-medium text-[#cbd5e1] hover:bg-white/[0.06] hover:text-[#f7f8f8]"
               >
-                {link.label}
+                <EditableText
+                  value={link.label}
+                  onCommit={(val) =>
+                    updateSectionDraft('meta', (p) => ({
+                      ...p,
+                      navLinks: p.navLinks.map((l, i) =>
+                        i === idx ? { ...l, label: val } : l,
+                      ),
+                    }))
+                  }
+                />
               </a>
             ))}
             <button

@@ -23,6 +23,7 @@ import {
 } from '../services/liveSurvey';
 import { getMilieuIcon } from '../utils/milieuIcons';
 import { calculateSelfTestResult } from '../utils/selfTest';
+import { EditableText } from './EditableText';
 import { LiveSurveyHostPanel } from './LiveSurveyHostPanel';
 
 interface SelfTestSectionProps {
@@ -63,7 +64,7 @@ export function SelfTestSection({
   const advanceTimerRef = useRef<number | null>(null);
   const submittedForRoomRef = useRef<string | null>(null);
 
-  const { content } = useSiteContent();
+  const { content, updateSectionDraft, canInlineEdit } = useSiteContent();
   const selfTest = content.self_test;
   const milieus = content.milieus_2035.milieus;
 
@@ -294,13 +295,39 @@ export function SelfTestSection({
           className="text-center max-w-2xl mx-auto"
         >
           <p className="text-xs sm:text-sm font-medium tracking-wide text-[#9ea4b0]">
-            {selfTest.eyebrow}
+            <EditableText
+              value={selfTest.eyebrow}
+              onCommit={(val) =>
+                updateSectionDraft('self_test', (p) => ({
+                  ...p,
+                  eyebrow: val,
+                }))
+              }
+            />
           </p>
           <h2 className="mt-2 font-display text-3xl sm:text-4xl lg:text-[42px] font-semibold tracking-tight text-[#f7f8f8] text-balance leading-[1.12]">
-            {selfTest.headline}
+            <EditableText
+              value={selfTest.headline}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('self_test', (p) => ({
+                  ...p,
+                  headline: val,
+                }))
+              }
+            />
           </h2>
           <p className="mt-3.5 text-base sm:text-[17px] leading-relaxed text-[#b4bac4]">
-            {selfTest.description}
+            <EditableText
+              value={selfTest.description}
+              multiline
+              onCommit={(val) =>
+                updateSectionDraft('self_test', (p) => ({
+                  ...p,
+                  description: val,
+                }))
+              }
+            />
           </p>
 
           {/* Clean Live Survey Action Controls */}
@@ -464,6 +491,38 @@ export function SelfTestSection({
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
+                {canInlineEdit && (
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-white/[0.06] pt-3">
+                    <span className="mr-1 text-[11px] font-medium text-emerald-400">
+                      Direkt zu Frage:
+                    </span>
+                    {selfTest.questions.map((q, qIdx) => (
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => setStep(qIdx)}
+                        className={`rounded-full px-2 py-0.5 font-mono-tabular text-[11px] font-semibold transition-colors cursor-pointer ${
+                          step === qIdx
+                            ? 'bg-emerald-400 text-[#040406]'
+                            : 'border border-white/[0.12] bg-white/[0.03] text-[#cbd5e1] hover:bg-white/[0.09]'
+                        }`}
+                      >
+                        {qIdx + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setStep(totalQuestions)}
+                      className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+                        isResultStep
+                          ? 'bg-emerald-400 text-[#040406]'
+                          : 'border border-white/[0.12] bg-white/[0.03] text-[#cbd5e1] hover:bg-white/[0.09]'
+                      }`}
+                    >
+                      Ergebnis
+                    </button>
+                  </div>
+                )}
               </div>
 
               <AnimatePresence mode="wait">
@@ -477,11 +536,34 @@ export function SelfTestSection({
                     className="p-6 sm:p-9"
                   >
                     <p className="text-sm font-semibold text-emerald-400">
-                      {currentQuestion.dimensionLabel}
+                      <EditableText
+                        value={currentQuestion.dimensionLabel}
+                        onCommit={(val) =>
+                          updateSectionDraft('self_test', (p) => ({
+                            ...p,
+                            questions: p.questions.map((q, idx) =>
+                              idx === step ? { ...q, dimensionLabel: val } : q,
+                            ),
+                          }))
+                        }
+                      />
                     </p>
 
                     <h3 className="mt-3 font-display text-xl sm:text-[23px] font-semibold leading-snug text-[#f7f8f8]">
-                      „{currentQuestion.text}“
+                      „
+                      <EditableText
+                        value={currentQuestion.text}
+                        multiline
+                        onCommit={(val) =>
+                          updateSectionDraft('self_test', (p) => ({
+                            ...p,
+                            questions: p.questions.map((q, idx) =>
+                              idx === step ? { ...q, text: val } : q,
+                            ),
+                          }))
+                        }
+                      />
+                      “
                     </h3>
 
                     <div className="mt-7 flex flex-col-reverse gap-2.5 sm:grid sm:grid-cols-5 sm:gap-3">
@@ -509,7 +591,19 @@ export function SelfTestSection({
                               {opt.value}
                             </span>
                             <span className="text-sm font-medium leading-snug">
-                              {opt.label}
+                              <EditableText
+                                value={opt.label}
+                                onCommit={(val) =>
+                                  updateSectionDraft('self_test', (p) => ({
+                                    ...p,
+                                    scaleOptions: p.scaleOptions.map((o) =>
+                                      o.value === opt.value
+                                        ? { ...o, label: val }
+                                        : o,
+                                    ),
+                                  }))
+                                }
+                              />
                             </span>
                           </button>
                         );
@@ -644,6 +738,32 @@ export function SelfTestSection({
                         <p className="mt-2 text-[15px] sm:text-base leading-relaxed text-[#cbd5e1]">
                           {result.explanation}
                         </p>
+                        {canInlineEdit && (
+                          <div className="mt-3 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.06] p-3">
+                            <div className="text-[11px] font-semibold text-emerald-300 mb-1">
+                              Ergebnis-Zusatzsatz für „{result.topMatch.milieu.name}“ bearbeiten:
+                            </div>
+                            <p className="text-sm leading-relaxed text-[#f7f8f8]">
+                              <EditableText
+                                value={
+                                  selfTest.secondSentences[
+                                    result.topMatch.milieu.id
+                                  ] ?? ''
+                                }
+                                multiline
+                                onCommit={(val) =>
+                                  updateSectionDraft('self_test', (p) => ({
+                                    ...p,
+                                    secondSentences: {
+                                      ...p.secondSentences,
+                                      [result.topMatch.milieu.id]: val,
+                                    },
+                                  }))
+                                }
+                              />
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Sorted 6-Milieu Distance Distribution */}
