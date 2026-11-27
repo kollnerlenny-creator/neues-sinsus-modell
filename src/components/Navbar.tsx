@@ -1,15 +1,14 @@
-import { Lock, Menu, Share2, ShieldCheck, X } from 'lucide-react';
+import { Menu, Share2, X } from 'lucide-react';
 import { motion, useScroll } from 'motion/react';
 import { useState } from 'react';
 import { useSiteContent } from '../context/ContentContext';
 
 interface NavbarProps {
   onOpenShare: () => void;
-  onOpenAdmin: () => void;
 }
 
-export function Navbar({ onOpenShare, onOpenAdmin }: NavbarProps) {
-  const { content, isAdmin } = useSiteContent();
+export function Navbar({ onOpenShare }: NavbarProps) {
+  const { content } = useSiteContent();
   const { meta } = content;
   const [mobileOpen, setMobileOpen] = useState(false);
   const { scrollYProgress } = useScroll();
@@ -48,28 +47,8 @@ export function Navbar({ onOpenShare, onOpenAdmin }: NavbarProps) {
           ))}
         </nav>
 
-        {/* Zone 3: Admin + Share + 1 primary CTA + mobile menu toggle */}
+        {/* Zone 3: Share + 1 primary CTA + mobile menu toggle */}
         <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenAdmin}
-            aria-label="Admin-Ansicht öffnen"
-            title={isAdmin ? 'Admin-Ansicht (Angemeldet)' : 'Admin-Ansicht'}
-            data-testid="open-admin-btn"
-            className={`hidden sm:inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
-              isAdmin
-                ? 'border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20'
-                : 'border-white/[0.1] bg-white/[0.03] text-[#cbd5e1] hover:bg-white/[0.08] hover:text-white'
-            }`}
-          >
-            {isAdmin ? (
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
-            ) : (
-              <Lock className="h-3.5 w-3.5 text-[#9ea4b0]" aria-hidden="true" />
-            )}
-            <span>Admin</span>
-          </button>
-
           <button
             type="button"
             onClick={onOpenShare}
@@ -125,22 +104,6 @@ export function Navbar({ onOpenShare, onOpenAdmin }: NavbarProps) {
             >
               <Share2 className="h-4 w-4 text-[#9ea4b0]" aria-hidden="true" />
               <span>Vorschau-Link teilen</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                onOpenAdmin();
-              }}
-              data-testid="open-admin-mobile-btn"
-              className="flex items-center gap-2.5 rounded-xl px-4 py-3 text-left text-[15px] font-medium text-[#cbd5e1] hover:bg-white/[0.06]"
-            >
-              {isAdmin ? (
-                <ShieldCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
-              ) : (
-                <Lock className="h-4 w-4 text-[#9ea4b0]" aria-hidden="true" />
-              )}
-              <span>Admin-Ansicht</span>
             </button>
           </div>
         </nav>

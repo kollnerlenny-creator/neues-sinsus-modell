@@ -26,38 +26,39 @@ function getInitialSurveyCode(): string | null {
   return cleaned.length === 6 ? cleaned : null;
 }
 
+function isAdminPath(
+  pathname: string = typeof window !== 'undefined' ? window.location.pathname : '/',
+): boolean {
+  const normalized = pathname.replace(/\/+$/, '') || '/';
+  return normalized === '/admin';
+}
+
 function shouldSkipIntroOnLoad(): boolean {
   if (typeof window === 'undefined') return true;
   const params = new URLSearchParams(window.location.search);
   return (
+    isAdminPath(window.location.pathname) ||
     params.get('autostart') === '1' ||
-    params.get('admin') === '1' ||
-    window.location.hash === '#admin' ||
     params.has('milieu') ||
     params.has('umfrage')
   );
 }
 
-function shouldOpenAdminOnLoad(): boolean {
-  if (typeof window === 'undefined') return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get('admin') === '1' || window.location.hash === '#admin';
-}
-
 export default function App() {
   const { content } = useSiteContent();
-  const initialContentRef = useRef(content);
+  const latestContentRef = useRef(content);
+  latestContentRef.current = content;
   const canvasMountRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<SinusSceneManager | null>(null);
   const userMarkerLabelRef = useRef<HTMLDivElement | null>(null);
 
   const [initialSurveyCode] = useState<string | null>(() => getInitialSurveyCode());
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => isAdminPath());
   const [showIntro, setShowIntro] = useState<boolean>(() => !shouldSkipIntroOnLoad());
   const [mode, setMode] = useState<ModelMode>('2035');
   const [selection, setSelection] = useState<SelectionPayload | null>(null);
   const [contextLost, setContextLost] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState<boolean>(() => shouldOpenAdminOnLoad());
   const [userResultCoords, setUserResultCoords] = useState<{
     uX: number;
     uY: number;
@@ -116,12 +117,29 @@ export default function App() {
     canonical.setAttribute('href', baseUrl);
   }, []);
 
-  // Mount Three.js scene once
+  // Sync browser back/forward navigation with /admin route
   useEffect(() => {
+    const handlePopState = () => {
+      setIsAdminRoute(isAdminPath(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleExitAdmin = useCallback(() => {
+    if (window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
+    setIsAdminRoute(false);
+  }, []);
+
+  // Mount Three.js scene when on public site
+  useEffect(() => {
+    if (isAdminRoute) return;
     const mountEl = canvasMountRef.current;
     if (!mountEl) return;
 
-    const initContent = initialContentRef.current;
+    const initContent = latestContentRef.current;
     const manager = new SinusSceneManager(
       mountEl,
       {
@@ -187,7 +205,7 @@ export default function App() {
       manager.dispose();
       sceneRef.current = null;
     };
-  }, [handleLabelsFrame]);
+  }, [handleLabelsFrame, isAdminRoute]);
 
   // Live-sync Firestore CMS edits into the mounted Three.js scene
   useEffect(() => {
@@ -270,6 +288,14 @@ export default function App() {
     [],
   );
 
+  if (isAdminRoute) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <AdminPanelModal open onClose={handleExitAdmin} />
+      </MotionConfig>
+    );
+  }
+
   return (
     <MotionConfig reducedMotion="user">
       <div className="relative min-h-screen bg-[#040406] text-[#f7f8f8]">
@@ -290,10 +316,7 @@ export default function App() {
         />
 
         <div className="relative z-10">
-          <Navbar
-            onOpenShare={() => setShareOpen(true)}
-            onOpenAdmin={() => setAdminOpen(true)}
-          />
+          <Navbar onOpenShare={() => setShareOpen(true)} />
 
           <main>
             <HeroHookSection />
@@ -344,8 +367,6 @@ export default function App() {
           mode={mode}
           selection={selection}
         />
-
-        <AdminPanelModal open={adminOpen} onClose={() => setAdminOpen(false)} />
       </div>
     </MotionConfig>
   );

@@ -1,5 +1,6 @@
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   Copy,
   Database,
@@ -18,9 +19,7 @@ import {
   ShieldCheck,
   Sliders,
   Trash2,
-  X,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   useCallback,
   useEffect,
@@ -206,14 +205,8 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
     if (!open) {
       setConfirmReset(false);
       setSaveStatus(null);
-      return;
     }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
+  }, [open]);
 
   const updateSectionDraft = useCallback(
     <K extends ContentSectionId>(
@@ -425,77 +418,60 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
   if (!open) return null;
 
   return (
-    <AnimatePresence>
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-5"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-modal-title"
-        data-testid="admin-panel-modal"
-      >
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm"
-        />
-
-        <motion.div
-          initial={{ opacity: 0, y: 18, scale: 0.99 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 12, scale: 0.99 }}
-          transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/[0.14] bg-[#0b0d11] shadow-[0_24px_80px_rgba(0,0,0,0.9)]"
-        >
-          {/* Modal Top Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.09] bg-[#0e1015] px-5 py-4 sm:px-6">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04]">
-                {isAdmin ? (
-                  <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
-                ) : (
-                  <Lock className="h-5 w-5 text-[#9ea4b0]" aria-hidden="true" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <h2
-                  id="admin-modal-title"
-                  className="font-display text-lg sm:text-xl font-semibold text-[#f7f8f8] truncate"
-                >
-                  Admin-Ansicht · Inhalte &amp; 3D-Daten verwalten
-                </h2>
-                <p className="text-xs text-[#8a8f98] truncate">
-                  {user
-                    ? `Angemeldet als ${user.email || user.uid}`
-                    : 'Geschützter Redaktionsbereich · Anmeldung erforderlich'}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {user && (
-                <button
-                  type="button"
-                  onClick={() => void signOut()}
-                  data-testid="admin-signout-btn"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.08] cursor-pointer transition-colors"
-                >
-                  <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Abmelden</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Admin-Ansicht schließen"
-                data-testid="close-admin-modal-btn"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.04] text-[#9ea4b0] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+    <main
+      aria-labelledby="admin-modal-title"
+      data-testid="admin-panel-modal"
+      className="fixed inset-0 z-50 flex h-dvh w-full flex-col overflow-hidden bg-[#0b0d11] text-[#f7f8f8]"
+    >
+      {/* Fullscreen Top Header */}
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.09] bg-[#0e1015] px-5 py-3.5 sm:px-8">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04]">
+            {isAdmin ? (
+              <ShieldCheck className="h-5 w-5 text-emerald-400" aria-hidden="true" />
+            ) : (
+              <Lock className="h-5 w-5 text-[#9ea4b0]" aria-hidden="true" />
+            )}
           </div>
+          <div className="min-w-0">
+            <h1
+              id="admin-modal-title"
+              className="font-display text-lg sm:text-xl font-semibold text-[#f7f8f8] truncate"
+            >
+              Admin-Ansicht · Inhalte &amp; 3D-Daten verwalten
+            </h1>
+            <p className="text-xs text-[#8a8f98] truncate">
+              {user
+                ? `Angemeldet als ${user.email || user.uid}`
+                : 'Geschützter Redaktionsbereich · Anmeldung erforderlich'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {user && (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              data-testid="admin-signout-btn"
+              className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.03] px-3.5 py-2 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.08] cursor-pointer transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Abmelden</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Zurück zur Website"
+            data-testid="close-admin-modal-btn"
+            className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.12] bg-white/[0.04] px-3.5 py-2 text-xs font-medium text-[#cbd5e1] hover:bg-white/[0.1] hover:text-white cursor-pointer transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Zur Website</span>
+          </button>
+        </div>
+      </header>
 
           {/* Body Switch: Auth Gate vs Denied vs Authorized CMS Editor */}
           {!authReady || adminCheckLoading ? (
@@ -773,7 +749,7 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
               )}
 
               {/* Section Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/[0.08] bg-[#090b0f] px-4 py-2.5 sm:px-6 sidebar-scroll">
+              <div className="flex items-center gap-1.5 overflow-x-auto border-b border-white/[0.08] bg-[#090b0f] px-5 py-2.5 sm:px-8 sidebar-scroll">
                 {TAB_META.map((tab) => {
                   const active = activeTab === tab.id;
                   const dirty = dirtyMap[tab.id];
@@ -808,7 +784,8 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
               </div>
 
               {/* Scrollable Editor Form */}
-              <div className="sidebar-scroll flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              <div className="sidebar-scroll flex-1 overflow-y-auto px-5 py-6 sm:px-8">
+                <div className="mx-auto w-full max-w-[1440px] space-y-6">
                 {/* TAB 1: META & HERO */}
                 {activeTab === 'meta' && (
                   <div className="space-y-6">
@@ -3259,10 +3236,11 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
 
               {/* Sticky Bottom Action Footer */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.09] bg-[#0e1015] px-5 py-3.5 sm:px-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.09] bg-[#0e1015] px-5 py-3.5 sm:px-8">
                 <div className="flex flex-wrap items-center gap-2">
                   {confirmReset ? (
                     <div className="flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-500/10 px-3 py-1">
@@ -3341,8 +3319,6 @@ export function AdminPanelModal({ open, onClose }: AdminPanelModalProps) {
               </div>
             </div>
           )}
-        </motion.div>
-      </div>
-    </AnimatePresence>
+    </main>
   );
 }
